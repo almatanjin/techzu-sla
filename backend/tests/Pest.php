@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
 /*
@@ -7,4 +8,4 @@ use Tests\TestCase;
 | PHPUnit test cases so they run without the framework.
 */
 
-pest()->extend(TestCase::class)->in('Feature');
+pest()->extend(TestCase::class)->use(LazilyRefreshDatabase::class)->in('Feature');

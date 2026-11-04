@@ -1,11 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Root } from '../../app/Root'
 import { server } from '../../test/server'
+import { signIn } from '../../test/signIn'
 
 describe('backend status', () => {
+  beforeEach(() => {
+    signIn()
+  })
   it('requests the health endpoint at the configured API URL', async () => {
     vi.stubEnv('VITE_API_URL', 'https://api.example.test/api/v1/')
     const requestedUrls: string[] = []

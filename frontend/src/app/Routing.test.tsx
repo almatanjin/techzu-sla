@@ -3,10 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { server } from '../test/server'
+import { signIn } from '../test/signIn'
 import { Root } from './Root'
 
 describe('routing', () => {
   beforeEach(() => {
+    signIn()
     server.use(
       http.get('http://api.test/api/v1/health', () =>
         HttpResponse.json({ status: 'ok', checks: { database: 'ok' } }),

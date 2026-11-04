@@ -30,7 +30,7 @@ Build and start the stack:
 docker compose up -d --build
 ```
 
-Install the backend dependencies, generate the app key and create the database tables:
+Install the backend dependencies, generate the app key, create the database tables, and seed the demo accounts:
 
 ```bash
 docker compose exec app composer install
@@ -44,10 +44,65 @@ docker compose exec app php artisan key:generate
 docker compose exec app php artisan migrate
 ```
 
+```bash
+docker compose exec app php artisan db:seed
+```
+
 The `queue` and `scheduler` containers restart until `composer install` has finished, then stay up.
 The `frontend` container installs its npm packages on first start, which takes about a minute.
 
-Open http://localhost:5173 and the home page shows the backend status as "Connected".
+Open http://localhost:5173 to sign in.
+The home page shows the backend status once signed in.
+
+## Demo accounts
+
+The database seeder creates standard accounts for local development.
+All demo accounts share the password `Password123`.
+
+| Email | Role | Description |
+| ----- | ---- | ----------- |
+| `admin@techzu-sla.test` | Administrator | Full administrative access to users and system configuration |
+| `agent1@techzu-sla.test` | Support Agent | First support agent account |
+| `agent2@techzu-sla.test` | Support Agent | Second support agent account |
+| `agent3@techzu-sla.test` | Support Agent | Third support agent account |
+| `customer1@techzu-sla.test` | Customer | First demo customer account |
+| `customer2@techzu-sla.test` | Customer | Second demo customer account |
+| `customer3@techzu-sla.test` | Customer | Third demo customer account |
+| `customer4@techzu-sla.test` | Customer | Fourth demo customer account |
+| `customer5@techzu-sla.test` | Customer | Fifth demo customer account |
+
+Seeding is idempotent and safely skips execution in production environments.
+
+## API Endpoints
+
+All API endpoints reside under the `/api/v1` prefix.
+
+### Authentication (`/api/v1/auth`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `POST` | `/api/v1/auth/register` | Public | Register a new customer account |
+| `POST` | `/api/v1/auth/login` | Public | Sign in and receive a 7-day Bearer token |
+| `POST` | `/api/v1/auth/logout` | Authenticated | Revoke current Bearer token |
+| `GET` | `/api/v1/auth/me` | Authenticated | Retrieve current user profile |
+| `POST` | `/api/v1/auth/forgot-password` | Public | Request password reset email via Mailpit |
+| `POST` | `/api/v1/auth/reset-password` | Public | Reset password using email token |
+
+### User Administration (`/api/v1/admin/users`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `GET` | `/api/v1/admin/users` | Admin only | List users with search, role, status and pagination |
+| `POST` | `/api/v1/admin/users` | Admin only | Create user with specified role and password |
+| `GET` | `/api/v1/admin/users/{id}` | Admin only | Retrieve user details |
+| `PATCH` | `/api/v1/admin/users/{id}` | Admin only | Update user details, role, status or password |
+
+## Environment variables
+
+Key configuration settings in `backend/.env`:
+
+- `FRONTEND_URL`: Allowed CORS origin and base URL for email links (default: `http://localhost:5173`).
+- `SANCTUM_TOKEN_EXPIRATION`: Personal access token validity period in minutes (default: `10080` minutes / 7 days).
 
 ## Local services
 
