@@ -1,0 +1,30 @@
+# OpenSpec
+openspec/
+.openspec/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.claude/
+.agents/
+.cursor/
+node_modules/
+
+# Documentation / Assessments
+Assessment for PHP team.md
+AGENTS.md
+
+
+# Backend (Laravel)
+backend/vendor/
+backend/.env
+backend/.env.backup
+backend/.phpunit.result.cache
+
+# Frontend (React)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
