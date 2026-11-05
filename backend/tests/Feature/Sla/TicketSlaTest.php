@@ -7,7 +7,7 @@ use Carbon\CarbonImmutable;
 
 beforeEach(function () {
     $this->customer = User::factory()->customer()->create();
-    $this->agent = User::factory()->agent()->create();
+    $this->agent = User::factory()->agent()->unavailable()->create();
     $this->agentToken = $this->agent->createToken('agent')->plainTextToken;
     $this->category = Category::factory()->create(['is_active' => true]);
 });
@@ -427,3 +427,48 @@ test('customer sla_status filter is ignored and unknown value returns 422', func
     $errRes->assertStatus(422)
         ->assertJsonValidationErrors(['sla_status']);
 });
+
+it('exposes escalated_at in sla payload for staff and null for unescalated ticket while customer sees no sla key', function () {
+    $escalatedTime = CarbonImmutable::parse('2026-11-08 11:01:00', 'UTC');
+
+    $escalatedTicket = Ticket::factory()->create([
+        'customer_id' => $this->customer->id,
+        'escalated_at' => $escalatedTime,
+    ]);
+
+    $unescalatedTicket = Ticket::factory()->create([
+        'customer_id' => $this->customer->id,
+        'escalated_at' => null,
+    ]);
+
+    // Agent detail view
+    $this->app['auth']->forgetGuards();
+    $detailRes = $this->withToken($this->agentToken)->getJson("/api/v1/tickets/{$escalatedTicket->ticket_number}");
+    $detailRes->assertOk();
+    expect($detailRes->json('sla.escalated_at'))->toBe($escalatedTime->toISOString());
+
+    $unescalatedDetailRes = $this->withToken($this->agentToken)->getJson("/api/v1/tickets/{$unescalatedTicket->ticket_number}");
+    $unescalatedDetailRes->assertOk();
+    expect($unescalatedDetailRes->json('sla.escalated_at'))->toBeNull();
+
+    // Agent list view
+    $listRes = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?view=all');
+    $listRes->assertOk();
+    $listData = collect($listRes->json('data'))->keyBy('ticket_number');
+    expect($listData->get($escalatedTicket->ticket_number)['sla']['escalated_at'])->toBe($escalatedTime->toISOString())
+        ->and($listData->get($unescalatedTicket->ticket_number)['sla']['escalated_at'])->toBeNull();
+
+    // Customer detail and list view
+    $custToken = $this->customer->createToken('cust')->plainTextToken;
+    $this->app['auth']->forgetGuards();
+    $custDetailRes = $this->withToken($custToken)->getJson("/api/v1/tickets/{$escalatedTicket->ticket_number}");
+    $custDetailRes->assertOk();
+    expect($custDetailRes->json())->not->toHaveKey('sla');
+
+    $custListRes = $this->withToken($custToken)->getJson('/api/v1/tickets');
+    $custListRes->assertOk();
+    foreach ($custListRes->json('data') as $item) {
+        expect($item)->not->toHaveKey('sla');
+    }
+});
+
