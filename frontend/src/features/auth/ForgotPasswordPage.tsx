@@ -40,27 +40,27 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Forgot your password?</h1>
-      <p className="mt-2 text-sm text-slate-600">
+    <div className="mx-auto max-w-md card p-8">
+      <h1 className="text-2xl font-bold tracking-tight text-fg">Forgot your password?</h1>
+      <p className="mt-2 text-sm text-fg-muted">
         Enter your email address and we will send you a link to reset your password.
       </p>
 
       {successMessage && (
-        <div role="status" className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+        <div role="status" className="mt-4 alert alert-success">
           {successMessage}
         </div>
       )}
 
       {formError && (
-        <div role="alert" className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <div role="alert" className="mt-4 alert alert-danger">
           {formError}
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4" noValidate>
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-slate-700">
+          <label htmlFor="email" className="label">
             Email
           </label>
           <input
@@ -68,25 +68,25 @@ export function ForgotPasswordPage() {
             type="email"
             autoComplete="email"
             {...register('email')}
-            className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="mt-1 input"
           />
           {errors.email && (
-            <p className="mt-1 text-sm text-rose-600">{errors.email.message}</p>
+            <p className="mt-1 text-sm text-danger">{errors.email.message}</p>
           )}
         </div>
 
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+          className="w-full btn btn-primary"
         >
           {isSubmitting ? 'Sending link...' : 'Send reset link'}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-slate-600">
+      <p className="mt-6 text-center text-sm text-fg-muted">
         Remember your password?{' '}
-        <Link to="/login" className="font-semibold text-blue-600 hover:underline">
+        <Link to="/login" className="link font-semibold">
           Return to sign in
         </Link>
       </p>
