@@ -25,5 +25,10 @@ class UserPolicy
     {
         return $user->isAdmin() && (bool) $user->is_active;
     }
+
+    public function searchCustomers(User $user): bool
+    {
+        return ($user->isAdmin() || $user->isAgent()) && (bool) $user->is_active;
+    }
 }
 
