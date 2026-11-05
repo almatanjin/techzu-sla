@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\Admin\BusinessHourController as AdminBusinessHourController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
+use App\Http\Controllers\Admin\SlaPolicyController as AdminSlaPolicyController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\AuthController;
@@ -45,5 +48,12 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::apiResource('users', AdminUserController::class)->only(['index', 'store', 'show', 'update']);
         Route::apiResource('categories', AdminCategoryController::class)->only(['store', 'update']);
+        Route::get('sla-policies', [AdminSlaPolicyController::class, 'index'])->name('sla-policies.index');
+        Route::patch('sla-policies/{priority}', [AdminSlaPolicyController::class, 'update'])->name('sla-policies.update');
+        Route::get('business-hours', [AdminBusinessHourController::class, 'show'])->name('business-hours.show');
+        Route::put('business-hours', [AdminBusinessHourController::class, 'update'])->name('business-hours.update');
+        Route::get('holidays', [AdminHolidayController::class, 'index'])->name('holidays.index');
+        Route::post('holidays', [AdminHolidayController::class, 'store'])->name('holidays.store');
+        Route::delete('holidays/{holiday}', [AdminHolidayController::class, 'destroy'])->name('holidays.destroy');
     });
 });
