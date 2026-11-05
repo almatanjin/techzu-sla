@@ -97,21 +97,21 @@ export function UsersListPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Users</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-2xl font-bold tracking-tight text-fg">Users</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Manage system administrators, support agents, and customer accounts.
           </p>
         </div>
         <Link
           to="/admin/users/new"
-          className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
+          className="btn btn-primary"
         >
           New user
         </Link>
       </div>
 
       {/* Filters bar */}
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="card flex flex-wrap items-center gap-4 p-4">
         <div className="flex-1 min-w-56">
           <label htmlFor="search-users" className="sr-only">
             Search users
@@ -122,19 +122,19 @@ export function UsersListPage() {
             placeholder="Search by name or email..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="input"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <label htmlFor="filter-role" className="text-sm font-medium text-slate-700">
+          <label htmlFor="filter-role" className="text-sm font-medium text-fg-secondary">
             Role:
           </label>
           <select
             id="filter-role"
             value={roleParam ?? ''}
             onChange={(e) => handleRoleChange(e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="input"
           >
             <option value="">All roles</option>
             <option value="admin">Admin</option>
@@ -144,14 +144,14 @@ export function UsersListPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label htmlFor="filter-status" className="text-sm font-medium text-slate-700">
+          <label htmlFor="filter-status" className="text-sm font-medium text-fg-secondary">
             Status:
           </label>
           <select
             id="filter-status"
             value={statusParam ?? ''}
             onChange={(e) => handleStatusChange(e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="input"
           >
             <option value="">All statuses</option>
             <option value="active">Active</option>
@@ -162,18 +162,18 @@ export function UsersListPage() {
 
       {/* Main content states */}
       {isLoading && (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-500">
+        <div className="card p-12 text-center text-fg-subtle">
           Loading users...
         </div>
       )}
 
       {isError && (
-        <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
+        <div role="alert" className="alert alert-danger p-6 text-center">
           <p>Failed to load users.</p>
           <button
             type="button"
             onClick={() => void refetch()}
-            className="mt-3 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-500"
+            className="mt-3 btn btn-danger btn-sm"
           >
             Retry
           </button>
@@ -181,15 +181,15 @@ export function UsersListPage() {
       )}
 
       {!isLoading && !isError && data && (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden card">
           {data.data.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No users found.</div>
+            <div className="p-12 text-center text-fg-subtle">No users found.</div>
           ) : (
             <>
               {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-700">
+                <table className="min-w-full divide-y divide-border text-left text-sm">
+                  <thead className="bg-surface-muted text-fg-secondary">
                     <tr>
                       <th className="px-6 py-3 font-semibold">Name</th>
                       <th className="px-6 py-3 font-semibold">Email</th>
@@ -198,19 +198,19 @@ export function UsersListPage() {
                       <th className="px-6 py-3 font-semibold text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white text-slate-900">
+                  <tbody className="divide-y divide-border bg-surface text-fg">
                     {data.data.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-50">
+                      <tr key={user.id} className="hover:bg-surface-muted">
                         <td className="px-6 py-4 font-medium">{user.name}</td>
-                        <td className="px-6 py-4 text-slate-600">{user.email}</td>
+                        <td className="px-6 py-4 text-fg-muted">{user.email}</td>
                         <td className="px-6 py-4">
                           <Badge
                             variant={
                               user.role === 'admin'
-                                ? 'purple'
+                                ? 'highlight'
                                 : user.role === 'agent'
-                                  ? 'blue'
-                                  : 'slate'
+                                  ? 'info'
+                                  : 'neutral'
                             }
                             className="capitalize"
                           >
@@ -218,14 +218,14 @@ export function UsersListPage() {
                           </Badge>
                         </td>
                         <td className="px-6 py-4">
-                          <Badge variant={user.is_active ? 'emerald' : 'rose'}>
+                          <Badge variant={user.is_active ? 'success' : 'danger'}>
                             {user.is_active ? 'Active' : 'Inactive'}
                           </Badge>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <Link
                             to={`/admin/users/${user.id}/edit`}
-                            className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
+                            className="link font-medium"
                           >
                             Edit
                           </Link>
@@ -237,33 +237,33 @@ export function UsersListPage() {
               </div>
 
               {/* Mobile cards view */}
-              <div className="divide-y divide-slate-200 md:hidden">
+              <div className="divide-y divide-border md:hidden">
                 {data.data.map((user) => (
                   <div key={user.id} className="space-y-2 p-4">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-900">{user.name}</span>
+                      <span className="font-semibold text-fg">{user.name}</span>
                       <Link
                         to={`/admin/users/${user.id}/edit`}
-                        className="text-sm font-medium text-blue-600 hover:underline"
+                        className="link text-sm font-medium"
                       >
                         Edit
                       </Link>
                     </div>
-                    <div className="text-sm text-slate-600">{user.email}</div>
+                    <div className="text-sm text-fg-muted">{user.email}</div>
                     <div className="flex items-center gap-2 pt-1">
                       <Badge
                         variant={
                           user.role === 'admin'
-                            ? 'purple'
+                            ? 'highlight'
                             : user.role === 'agent'
-                              ? 'blue'
-                              : 'slate'
+                              ? 'info'
+                              : 'neutral'
                         }
                         className="capitalize"
                       >
                         {user.role}
                       </Badge>
-                      <Badge variant={user.is_active ? 'emerald' : 'rose'}>
+                      <Badge variant={user.is_active ? 'success' : 'danger'}>
                         {user.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
