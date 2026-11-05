@@ -57,10 +57,10 @@ export function TicketStatusActions({ ticket, onStatusChanged, onConflict }: Pro
 
   const getActionLabel = (status: TicketStatus): string => {
     if (status === 'open') {
-      return ticket.status === 'resolved' || ticket.status === 'closed' ? 'Reopen' : 'Open'
+      return ticket.status === 'resolved' || ticket.status === 'closed' ? 'Reopen Ticket' : 'Open'
     }
     if (status === 'in_progress') {
-      return ticket.status === 'resolved' ? 'Reopen' : 'Start Work'
+      return ticket.status === 'resolved' ? 'Reopen Ticket' : 'Start Work'
     }
     if (status === 'waiting_for_customer') {
       return 'Waiting for Customer'

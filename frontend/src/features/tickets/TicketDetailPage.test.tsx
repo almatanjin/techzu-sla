@@ -65,7 +65,7 @@ describe('TicketDetailPage', () => {
     render(<Root />)
 
     expect(await screen.findByText('Resolved billing problem')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reopen' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reopen Ticket' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
 
     // No edit form buttons or inputs

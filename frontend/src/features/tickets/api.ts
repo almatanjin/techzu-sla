@@ -27,13 +27,38 @@ function unwrapArray<T>(data: T[] | { data: T[] }): T[] {
   return []
 }
 
+export type ListTicketsOptions = {
+  view?: TicketView | 'all'
+  status?: string
+  priority?: string
+  categoryId?: number | string
+  search?: string
+  assigned?: string
+  page?: number
+}
+
 export async function listTickets(
   client: AxiosInstance,
-  options: { view?: TicketView; page?: number } = {},
+  options: ListTicketsOptions = {},
 ): Promise<PaginatedTicketsResponse> {
   const params = new URLSearchParams()
   if (options.view) {
     params.set('view', options.view)
+  }
+  if (options.status) {
+    params.set('status', options.status)
+  }
+  if (options.priority) {
+    params.set('priority', options.priority)
+  }
+  if (options.categoryId) {
+    params.set('category_id', String(options.categoryId))
+  }
+  if (options.search) {
+    params.set('search', options.search)
+  }
+  if (options.assigned) {
+    params.set('assigned', options.assigned)
   }
   if (options.page && options.page > 1) {
     params.set('page', String(options.page))

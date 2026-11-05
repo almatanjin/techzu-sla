@@ -13,6 +13,12 @@ describe('TicketsListPage', () => {
       http.get('http://api.test/api/v1/health', () =>
         HttpResponse.json({ status: 'ok', checks: { database: 'ok' } }),
       ),
+      http.get('http://api.test/api/v1/categories', () =>
+        HttpResponse.json([
+          { id: 1, name: 'Billing', is_active: true },
+          { id: 2, name: 'Technical', is_active: true },
+        ]),
+      ),
     )
   })
 
@@ -103,5 +109,40 @@ describe('TicketsListPage', () => {
     await user.click(activeTab)
 
     expect(window.location.search).toContain('view=active')
+  })
+
+  it('filters tickets by status and updates the query parameters', async () => {
+    const user = userEvent.setup()
+    let capturedStatus: string | null = null
+
+    server.use(
+      http.get('http://api.test/api/v1/tickets', ({ request }) => {
+        const url = new URL(request.url)
+        capturedStatus = url.searchParams.get('status')
+        return HttpResponse.json({
+          data: [],
+          meta: {
+            current_page: 1,
+            last_page: 1,
+            per_page: 20,
+            total: 0,
+            from: null,
+            to: null,
+          },
+        })
+      }),
+    )
+
+    window.history.replaceState(null, '', '/tickets')
+    render(<Root />)
+
+    expect(await screen.findByRole('heading', { name: 'Tickets' })).toBeInTheDocument()
+
+    const statusSelect = screen.getByLabelText('Status')
+    await user.selectOptions(statusSelect, 'resolved')
+
+    expect(window.location.search).toContain('status=resolved')
+    expect(window.location.search).toContain('view=closed')
+    expect(capturedStatus).toBe('resolved')
   })
 })
