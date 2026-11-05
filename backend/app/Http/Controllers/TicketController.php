@@ -24,7 +24,7 @@ class TicketController extends Controller
     {
         $tickets = $this->ticketService->list(
             $request->user(),
-            $request->input('view', 'active')
+            $request->toFilterData()
         );
 
         return TicketListResource::collection($tickets);

@@ -225,3 +225,64 @@ it('runs a constant number of database queries regardless of page size', functio
     expect($queriesFor20)->toBe($queriesFor3)
         ->and($queriesFor20)->toBe(4);
 });
+
+it('filters tickets by specific status, category, priority, search, and assigned agent', function () {
+    $cat1 = Category::factory()->create(['name' => 'Billing']);
+    $cat2 = Category::factory()->create(['name' => 'Technical']);
+
+    $ticket1 = Ticket::factory()->open()->create([
+        'category_id' => $cat1->id,
+        'priority' => TicketPriority::Critical,
+        'subject' => 'Urgent billing problem',
+        'assigned_agent_id' => $this->agent->id,
+    ]);
+
+    $ticket2 = Ticket::factory()->resolved()->create([
+        'category_id' => $cat2->id,
+        'priority' => TicketPriority::Low,
+        'subject' => 'Resolved printer setup',
+        'assigned_agent_id' => null,
+    ]);
+
+    // Filter by specific status: resolved
+    $resStatus = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?status=resolved');
+    $resStatus->assertOk();
+    $statusIds = collect($resStatus->json('data'))->pluck('id')->all();
+    expect($statusIds)->toContain($ticket2->id)
+        ->and($statusIds)->not->toContain($ticket1->id);
+
+    // Filter by category: cat1
+    $resCat = $this->withToken($this->agentToken)->getJson("/api/v1/tickets?category_id={$cat1->id}");
+    $resCat->assertOk();
+    $catIds = collect($resCat->json('data'))->pluck('id')->all();
+    expect($catIds)->toContain($ticket1->id)
+        ->and($catIds)->not->toContain($ticket2->id);
+
+    // Filter by priority: critical
+    $resPri = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?priority=critical');
+    $resPri->assertOk();
+    $priIds = collect($resPri->json('data'))->pluck('id')->all();
+    expect($priIds)->toContain($ticket1->id)
+        ->and($priIds)->not->toContain($ticket2->id);
+
+    // Filter by search: "printer" across all views
+    $resSearch = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?search=printer&view=all');
+    $resSearch->assertOk();
+    $searchIds = collect($resSearch->json('data'))->pluck('id')->all();
+    expect($searchIds)->toContain($ticket2->id)
+        ->and($searchIds)->not->toContain($ticket1->id);
+
+    // Filter by assigned: me
+    $resAssignedMe = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?assigned=me');
+    $resAssignedMe->assertOk();
+    $assignedMeIds = collect($resAssignedMe->json('data'))->pluck('id')->all();
+    expect($assignedMeIds)->toContain($ticket1->id)
+        ->and($assignedMeIds)->not->toContain($ticket2->id);
+
+    // Filter by assigned: unassigned
+    $resUnassigned = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?status=resolved&assigned=unassigned');
+    $resUnassigned->assertOk();
+    $unassignedIds = collect($resUnassigned->json('data'))->pluck('id')->all();
+    expect($unassignedIds)->toContain($ticket2->id)
+        ->and($unassignedIds)->not->toContain($ticket1->id);
+});

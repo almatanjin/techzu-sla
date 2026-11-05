@@ -43,12 +43,16 @@ class DemoTicketSeeder extends Seeder
             TicketPriority::Critical,
         ];
 
-        $statuses = [
+        // Fixed status pattern for each customer's 8 tickets so every customer has tickets in all statuses
+        $customerStatuses = [
             TicketStatus::Open,
             TicketStatus::InProgress,
             TicketStatus::WaitingForCustomer,
             TicketStatus::Resolved,
             TicketStatus::Closed,
+            TicketStatus::Open,
+            TicketStatus::InProgress,
+            TicketStatus::Resolved,
         ];
 
         $sampleSubjects = [
@@ -65,87 +69,93 @@ class DemoTicketSeeder extends Seeder
         ];
 
         $baseDate = Carbon::now()->subDays(30);
+        $ticketIndex = 0;
 
-        for ($i = 0; $i < 40; $i++) {
-            $customer = $customers[$i % $customers->count()];
-            $category = $categories[$i % $categories->count()];
-            $priority = $priorities[$i % count($priorities)];
-            $status = $statuses[$i % count($statuses)];
-            $subject = $sampleSubjects[$i % count($sampleSubjects)] . ' #' . ($i + 1);
+        foreach ($customers as $cIdx => $customer) {
+            // Seed 8 tickets per customer across statuses
+            for ($k = 0; $k < 8; $k++) {
+                $category = $categories[($cIdx + $k) % $categories->count()];
+                $priority = $priorities[($cIdx + $k) % count($priorities)];
+                $status = $customerStatuses[$k];
 
-            $createdAt = (clone $baseDate)->addHours($i * 18);
-            $updatedAt = (clone $createdAt)->addHours(4);
+                $subject = $sampleSubjects[($cIdx * 8 + $k) % count($sampleSubjects)] . ' #' . ($ticketIndex + 1);
 
-            $assignedAgent = ($status !== TicketStatus::Open && $agents->isNotEmpty())
-                ? $agents[$i % $agents->count()]
-                : null;
+                $createdAt = (clone $baseDate)->addHours($ticketIndex * 18);
+                $updatedAt = (clone $createdAt)->addHours(4);
 
-            $resolvedAt = in_array($status, [TicketStatus::Resolved, TicketStatus::Closed], true)
-                ? (clone $createdAt)->addHours(2)
-                : null;
+                $assignedAgent = ($status !== TicketStatus::Open && $agents->isNotEmpty())
+                    ? $agents[($cIdx + $k) % $agents->count()]
+                    : null;
 
-            $closedAt = ($status === TicketStatus::Closed)
-                ? (clone $createdAt)->addHours(5)
-                : null;
+                $resolvedAt = in_array($status, [TicketStatus::Resolved, TicketStatus::Closed], true)
+                    ? (clone $createdAt)->addHours(2)
+                    : null;
 
-            DB::transaction(function () use (
-                $generator,
-                $customer,
-                $category,
-                $assignedAgent,
-                $priority,
-                $status,
-                $subject,
-                $createdAt,
-                $updatedAt,
-                $resolvedAt,
-                $closedAt
-            ) {
-                $ticketNumber = $generator->next();
+                $closedAt = ($status === TicketStatus::Closed)
+                    ? (clone $createdAt)->addHours(5)
+                    : null;
 
-                $ticket = Ticket::create([
-                    'ticket_number' => $ticketNumber,
-                    'customer_id' => $customer->id,
-                    'category_id' => $category->id,
-                    'created_by_id' => $customer->id,
-                    'assigned_agent_id' => $assignedAgent?->id,
-                    'priority' => $priority,
-                    'status' => $status,
-                    'subject' => $subject,
-                    'description' => "Detailed issue description for {$subject}. Customer reported this via demo portal.",
-                    'resolved_at' => $resolvedAt,
-                    'closed_at' => $closedAt,
-                    'lock_version' => 1,
-                    'created_at' => $createdAt,
-                    'updated_at' => $updatedAt,
-                ]);
+                DB::transaction(function () use (
+                    $generator,
+                    $customer,
+                    $category,
+                    $assignedAgent,
+                    $priority,
+                    $status,
+                    $subject,
+                    $createdAt,
+                    $updatedAt,
+                    $resolvedAt,
+                    $closedAt
+                ) {
+                    $ticketNumber = $generator->next();
 
-                // 1. Created activity
-                TicketActivity::create([
-                    'ticket_id' => $ticket->id,
-                    'actor_id' => $customer->id,
-                    'type' => TicketActivityType::Created,
-                    'old_values' => null,
-                    'new_values' => null,
-                    'created_at' => $createdAt,
-                ]);
+                    $ticket = Ticket::create([
+                        'ticket_number' => $ticketNumber,
+                        'customer_id' => $customer->id,
+                        'category_id' => $category->id,
+                        'created_by_id' => $customer->id,
+                        'assigned_agent_id' => $assignedAgent?->id,
+                        'priority' => $priority,
+                        'status' => $status,
+                        'subject' => $subject,
+                        'description' => "Detailed issue description for {$subject}. Customer reported this via demo portal.",
+                        'resolved_at' => $resolvedAt,
+                        'closed_at' => $closedAt,
+                        'lock_version' => 1,
+                        'created_at' => $createdAt,
+                        'updated_at' => $updatedAt,
+                    ]);
 
-                // 2. Status change activity if non-open
-                if ($status !== TicketStatus::Open) {
+                    // 1. Created activity
                     TicketActivity::create([
                         'ticket_id' => $ticket->id,
-                        'actor_id' => $assignedAgent?->id,
-                        'type' => TicketActivityType::StatusChanged,
-                        'old_values' => [
-                            'status' => TicketStatus::Open->value,
-                        ],
-                        'new_values' => [
-                            'status' => $status->value,
-                        ],
-                        'created_at' => $updatedAt,
+                        'actor_id' => $customer->id,
+                        'type' => TicketActivityType::Created,
+                        'old_values' => null,
+                        'new_values' => null,
+                        'created_at' => $createdAt,
                     ]);
-                }
-            });
+
+                    // 2. Status change activity if non-open
+                    if ($status !== TicketStatus::Open) {
+                        TicketActivity::create([
+                            'ticket_id' => $ticket->id,
+                            'actor_id' => $assignedAgent?->id,
+                            'type' => TicketActivityType::StatusChanged,
+                            'old_values' => [
+                                'status' => TicketStatus::Open->value,
+                            ],
+                            'new_values' => [
+                                'status' => $status->value,
+                            ],
+                            'created_at' => $updatedAt,
+                        ]);
+                    }
+                });
+
+                $ticketIndex++;
+            }
         }
     }
 }

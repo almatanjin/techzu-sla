@@ -4,6 +4,7 @@ namespace App\Services\Tickets;
 
 use App\Data\ChangeStatusData;
 use App\Data\CreateTicketData;
+use App\Data\TicketFilterData;
 use App\Data\UpdateTicketData;
 use App\Enums\TicketActivityType;
 use App\Enums\TicketStatus;
@@ -22,15 +23,48 @@ class TicketService
         private readonly TicketWorkflow $workflow,
     ) {}
 
-    public function list(User $user, string $view = 'active', int $perPage = 20): LengthAwarePaginator
+    public function list(User $user, TicketFilterData|string $filter = 'active', int $perPage = 20): LengthAwarePaginator
     {
-        $statuses = $view === 'closed'
-            ? TicketStatus::closedView()
-            : TicketStatus::active();
+        if (is_string($filter)) {
+            $filter = new TicketFilterData(view: $filter);
+        }
 
-        return Ticket::query()
-            ->visibleTo($user)
-            ->whereIn('status', array_map(fn ($s) => $s->value, $statuses))
+        $query = Ticket::query()->visibleTo($user);
+
+        if ($filter->status !== null) {
+            $query->where('status', $filter->status->value);
+        } elseif ($filter->view === 'closed') {
+            $statuses = TicketStatus::closedView();
+            $query->whereIn('status', array_map(fn ($s) => $s->value, $statuses));
+        } elseif ($filter->view !== 'all') {
+            $statuses = TicketStatus::active();
+            $query->whereIn('status', array_map(fn ($s) => $s->value, $statuses));
+        }
+
+        if ($filter->categoryId !== null) {
+            $query->where('category_id', $filter->categoryId);
+        }
+
+        if ($filter->priority !== null) {
+            $query->where('priority', $filter->priority->value);
+        }
+
+        if ($filter->search !== null && $filter->search !== '') {
+            $term = '%' . $filter->search . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('ticket_number', 'like', $term)
+                    ->orWhere('subject', 'like', $term)
+                    ->orWhere('description', 'like', $term);
+            });
+        }
+
+        if ($filter->assigned === 'me') {
+            $query->where('assigned_agent_id', $user->id);
+        } elseif ($filter->assigned === 'unassigned') {
+            $query->whereNull('assigned_agent_id');
+        }
+
+        return $query
             ->with([
                 'category:id,name',
                 'customer:id,name,email',

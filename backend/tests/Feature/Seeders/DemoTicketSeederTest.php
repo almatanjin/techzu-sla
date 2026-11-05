@@ -38,6 +38,15 @@ it('seeds approximately 40 tickets with activities in non-production environment
     expect(Ticket::where('priority', TicketPriority::Medium->value)->count())->toBeGreaterThan(0);
     expect(Ticket::where('priority', TicketPriority::High->value)->count())->toBeGreaterThan(0);
     expect(Ticket::where('priority', TicketPriority::Critical->value)->count())->toBeGreaterThan(0);
+
+    // Every customer has at least one resolved ticket
+    $customers = User::where('role', 'customer')->get();
+    foreach ($customers as $c) {
+        expect(Ticket::where('customer_id', $c->id)->where('status', TicketStatus::Resolved->value)->count())
+            ->toBeGreaterThan(0);
+        expect(Ticket::where('customer_id', $c->id)->where('status', TicketStatus::Open->value)->count())
+            ->toBeGreaterThan(0);
+    }
 });
 
 it('does not create tickets when running in production environment', function () {
