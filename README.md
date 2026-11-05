@@ -215,6 +215,16 @@ For deep pagination (such as page 100 and beyond), cursor pagination on `(create
 | ------ | -------- | ------ | ----------- |
 | `GET` | `/api/v1/dashboard` | Authenticated | Role-scoped operational dashboard metrics and recent tickets |
 
+### Ticket Imports (`/api/v1/admin/imports`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `GET` | `/api/v1/admin/imports` | Admin only | List ticket import history (newest first, 20 per page) |
+| `POST` | `/api/v1/admin/imports` | Admin only | Upload CSV file to start background import (up to 50 MB) |
+| `GET` | `/api/v1/admin/imports/{id}` | Admin only | Retrieve specific import details, progress, and counts |
+| `GET` | `/api/v1/admin/imports/{id}/errors.csv` | Admin only | Download streaming error report CSV for skipped rows |
+| `GET` | `/api/v1/admin/imports/template.csv` | Admin only | Download sample import template CSV |
+
 ## SLA and business hours
 
 Every ticket receives an SLA resolution deadline based on its priority, measured strictly in business hours.
@@ -350,8 +360,8 @@ Security headers include `X-Content-Type-Options: nosniff` and `Cache-Control: p
 
 ### Docker upload limits
 
-Docker configurations accommodate multi-file uploads:
-- `docker/php/php.ini`: `upload_max_filesize = 11M`, `post_max_size = 60M`, `max_file_uploads = 10`.
+Docker configurations accommodate multi-file uploads and CSV imports:
+- `docker/php/php.ini`: `upload_max_filesize = 51M`, `post_max_size = 60M`, `max_file_uploads = 10`.
 - `docker/nginx/default.conf`: `client_max_body_size 60M`.
 Requests exceeding `post_max_size` answer HTTP 413 Payload Too Large with a JSON error message.
 
@@ -437,6 +447,121 @@ docker compose exec app php artisan schedule:clear-cache
 
 - **Notification opt-out for future imports:** All ticket notification logic routes through `App\Listeners\SendTicketNotifications`, providing a single seam to disable notifications during batch data migrations or imports.
 
+## CSV import
+
+Administrators can import historical tickets in bulk through the web UI at `/admin/imports` or the REST API.
+The import pipeline processes files up to 50 MB using constant memory streaming, background chunk workers, idempotent retries, and silent SLA calculation.
+
+### Columns and formats
+
+Files must be comma-separated values (CSV) encoded in UTF-8.
+Optional UTF-8 byte-order marks (BOM) are stripped automatically.
+Header names are case-insensitive and can appear in any order.
+The template provides the following 10 columns:
+
+- `customer_email`: Required customer email address matching an existing user with role `customer`.
+Both active and deactivated customers are accepted so historical tickets retain accurate authorship.
+- `category_name`: Required category name matching an existing active category.
+- `priority`: Required case-insensitive ticket priority (`low`, `medium`, `high`, `critical`).
+- `subject`: Required issue summary between 1 and 200 characters.
+- `description`: Required issue description up to 65,535 characters.
+Multi-line quoted text with embedded line breaks is fully supported.
+- `status`: Optional ticket status (`open`, `in_progress`, `waiting_for_customer`, `resolved`, `closed`).
+Defaults to `open` when omitted or blank.
+- `created_at`: Optional creation timestamp formatted as ISO 8601 or `YYYY-MM-DD HH:MM:SS`.
+Times lacking timezone offsets are interpreted in the business timezone (`TICKETS_TIMEZONE`, default `Asia/Dhaka`).
+Defaults to the import timestamp when omitted or blank.
+Timestamps in the future are rejected.
+- `resolved_at`: Timestamp required when status is `resolved` or `closed`.
+Forbidden on active ticket statuses.
+Must be at or after `created_at` and cannot be in the future.
+- `closed_at`: Timestamp required when status is `closed`.
+Forbidden on non-closed ticket statuses.
+Must be at or after `resolved_at` and cannot be in the future.
+- `external_reference`: Required identifier up to 64 characters from the origin system.
+
+### Row rules, errors, and duplicate handling
+
+Invalid rows are rejected and reported with descriptive reasons:
+- Non-CSV files, empty uploads, or files exceeding 50 MB are rejected immediately with HTTP 422.
+- Missing required header columns return an immediate 422 error detailing the missing column name.
+- Invalid UTF-8 sequences trigger a file rejection.
+- Unknown customer emails report `Unknown customer email {email}`.
+- Unknown categories report `Unknown category {category}`.
+- Invalid priorities report `Invalid priority {priority}`.
+- Invalid statuses report `Invalid status {status}`.
+- Inconsistent timestamps report specific mismatches, including `Resolved at is required for resolved tickets` and `Resolved at cannot be earlier than created at`.
+- In-file duplicate references report `Duplicate of line {earlier_line} in this file.`.
+- Database duplicate references report `Reference {reference} already exists in the database.`.
+- Re-importing a previously imported file flags all previously imported rows as duplicates and creates zero tickets.
+
+Administrators can download the error report via `GET /api/v1/admin/imports/{id}/errors.csv`.
+The report streams a CSV file with columns `line`, `external_reference`, and `reasons` for failed and duplicate rows in original file order.
+
+### Architecture: scan pass and chunk jobs
+
+The import architecture splits execution into two coordinated phases:
+1. **Scan pass (`ScanTicketImport`)**:
+A single streaming pass reads the uploaded file row by row with `fgetcsv`.
+It verifies headers, indexes byte offsets every 500 rows, maps external references to detect in-file duplicates, and records chunk metadata in `ticket_import_chunks`.
+Total rows and detected duplicate counts are persisted upon scan completion.
+2. **Chunk jobs (`ProcessTicketImportChunk`)**:
+The scan job dispatches a `Bus::batch` containing one job per 500-row chunk.
+Queue workers seek directly to chunk byte offsets and process rows independently.
+Each chunk caches business schedules and SLA policies in memory, avoiding repeated policy queries.
+Ticket sequence numbers are allocated in batch blocks using `TicketNumberGenerator::nextBlock($count)`.
+Tickets, SLA properties, and timeline activities commit within a single database transaction per chunk.
+
+Retries remain idempotent:
+- Each chunk checks its `ticket_import_chunks` record.
+- A chunk marked `completed` returns immediately, preventing duplicate rows or repeated count increments on worker retries.
+- Failed chunk jobs record row-level error entries and mark the parent import status as `failed` with "Some rows could not be processed.".
+- Clean chunks in the same batch continue processing normally.
+
+Memory consumption remains constant regardless of row volume:
+- Benchmarking 100,000 valid rows imported completely in 14.14 seconds.
+- Peak memory usage during the 100,000-row run increased by only 22.4 MB, well below the 64 MB budget.
+
+### Quiet import and silent SLA assumptions
+
+Imports operate under quiet conventions to avoid spamming customers or triggering false alerts on legacy data:
+- **Zero notifications**: Transactional customer notifications and agent alerts are suppressed entirely during import execution.
+- **Unassigned tickets**: Imported tickets are created without an assigned agent (`assigned_agent_id = NULL`).
+- **Assignment retry exclusion**: The scheduled assignment retry command `tickets:assign-unassigned` filters out imported tickets via `whereNull('ticket_import_id')`.
+Support agents can claim imported tickets manually, and administrators can assign them at any time.
+- **Silent SLA calculation**: SLA resolution deadlines are calculated per row using the priority's current SLA policy.
+For tickets whose deadlines passed prior to import, `sla_warning_notified_at` and `sla_breached_at` are stamped with the import time, while `escalated_at` remains NULL.
+This silences notifications and escalations for historic breaches while correctly displaying breached status on dashboards and ticket views.
+Future deadlines trigger normal warning emails and escalations when `tickets:check-sla` runs.
+Historical resolved tickets evaluate their resolution against `resolved_at` and record `met` status when resolved within deadline.
+
+### Remote object storage and worker hosts
+
+Chunk jobs read directly from the CSV file using byte offsets (`fseek`).
+POSIX byte seeking requires a seekable local filesystem.
+Remote object storage providers like AWS S3 or Cloudflare R2 do not provide native byte seeking.
+When running across multiple queue worker hosts with remote object storage, workers must stream or download the import file to a shared seekable disk or shared local volume.
+
+### Sample generator command
+
+Generate realistic sample CSV files for testing with the Artisan generator:
+
+```bash
+docker compose exec app php artisan tickets:make-sample-csv --rows=100000 --invalid=1 --duplicates=1
+```
+
+Options:
+- `--rows`: Number of data rows to generate (default: 1000).
+- `--path`: Custom destination file path (default: `storage/app/private/samples/tickets-{rows}.csv`).
+- `--invalid`: Percentage of invalid rows to inject (e.g. invalid emails or priorities).
+- `--duplicates`: Percentage of duplicate external references to inject.
+
+Monitor queue execution in real time:
+
+```bash
+docker compose logs -f queue
+```
+
 ## Dashboard
 
 The home page displays an operational dashboard tailored to each user's authenticated role.
@@ -504,6 +629,18 @@ Run only the concurrency race suite:
 
 ```bash
 docker compose exec app php artisan test --testsuite=Concurrency
+```
+
+Run the import benchmark suite:
+
+```bash
+docker compose exec app php artisan test --testsuite=Import
+```
+
+Skip large import benchmarks during local test runs:
+
+```bash
+docker compose exec app php artisan test --exclude-group=large-import
 ```
 
 Frontend tests (Vitest + React Testing Library, network mocked with MSW):

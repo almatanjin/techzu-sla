@@ -174,6 +174,28 @@ describe('describeActivity', () => {
       created_at: '2026-11-01T13:01:00Z',
     }
     expect(describeActivity(escalated)).toBe('Escalated: SLA deadline passed')
+
+    const importedWithRef: TicketActivity = {
+      id: 16,
+      ticket_id: 1,
+      actor: { id: 1, name: 'Sara Admin' },
+      type: 'imported',
+      old_values: null,
+      new_values: { external_reference: 'LEG-42', import_id: 1 },
+      created_at: '2026-11-01T13:05:00Z',
+    }
+    expect(describeActivity(importedWithRef)).toBe('Imported from CSV (reference LEG-42)')
+
+    const importedNoRef: TicketActivity = {
+      id: 17,
+      ticket_id: 1,
+      actor: { id: 1, name: 'Sara Admin' },
+      type: 'imported',
+      old_values: null,
+      new_values: { import_id: 1 },
+      created_at: '2026-11-01T13:05:00Z',
+    }
+    expect(describeActivity(importedNoRef)).toBe('Imported from CSV')
   })
 })
 
@@ -349,5 +371,59 @@ describe('ActivityTimeline Component', () => {
 
     expect(await screen.findByText('Status changed from Open to In Progress')).toBeInTheDocument()
     expect(screen.getByText('Support Agent')).toBeInTheDocument()
+  })
+
+  it('renders imported activity as "Imported from CSV (reference LEG-42)" with the actor name', async () => {
+    server.use(
+      http.get('http://api.test/api/v1/tickets/TKT-2026-000099', () => {
+        return HttpResponse.json({
+          data: {
+            ticket_number: 'TKT-2026-000099',
+            subject: 'Imported ticket',
+            description: 'Migrated from legacy system',
+            priority: 'medium',
+            status: 'open',
+            customer: { id: 1, name: 'Cust One', email: 'cust@example.test' },
+            created_by: { id: 99, name: 'Sara Admin' },
+            assigned_agent: null,
+            category: { id: 1, name: 'General' },
+            resolved_at: null,
+            closed_at: null,
+            lock_version: 1,
+            created_at: '2026-11-01T10:00:00Z',
+            updated_at: '2026-11-01T10:00:00Z',
+            permissions: {
+              can_edit_content: false,
+              can_edit_classification: false,
+              allowed_statuses: ['in_progress', 'resolved', 'closed'],
+            },
+          },
+        })
+      }),
+      http.get('http://api.test/api/v1/tickets/TKT-2026-000099/messages', () => {
+        return HttpResponse.json({ data: [] })
+      }),
+      http.get('http://api.test/api/v1/tickets/TKT-2026-000099/activities', () => {
+        return HttpResponse.json({
+          data: [
+            {
+              id: 1,
+              ticket_id: 99,
+              actor: { id: 99, name: 'Sara Admin' },
+              type: 'imported',
+              old_values: null,
+              new_values: { external_reference: 'LEG-42', import_id: 1 },
+              created_at: '2026-11-01T10:00:00Z',
+            },
+          ],
+        })
+      }),
+    )
+
+    window.history.replaceState(null, '', '/tickets/TKT-2026-000099')
+    render(<Root />)
+
+    expect(await screen.findByText('Imported from CSV (reference LEG-42)')).toBeInTheDocument()
+    expect(screen.getAllByText('Sara Admin').length).toBeGreaterThanOrEqual(1)
   })
 })

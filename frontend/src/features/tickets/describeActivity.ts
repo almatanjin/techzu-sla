@@ -6,6 +6,11 @@ export function describeActivity(activity: TicketActivity): string {
     case 'created':
       return 'Ticket created'
 
+    case 'imported': {
+      const ref = activity.new_values?.external_reference ? String(activity.new_values.external_reference) : ''
+      return ref ? `Imported from CSV (reference ${ref})` : 'Imported from CSV'
+    }
+
     case 'status_changed': {
       const fromKey = String(activity.old_values?.status ?? '') as TicketStatus
       const toKey = String(activity.new_values?.status ?? '') as TicketStatus

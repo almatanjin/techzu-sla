@@ -28,6 +28,9 @@ export function AppLayout() {
                   <NavLink to="/admin/users" className="nav-link">
                     Users
                   </NavLink>
+                  <NavLink to="/admin/imports" className="nav-link">
+                    Imports
+                  </NavLink>
                 </>
               )}
               {(user?.role === 'admin' || user?.role === 'agent') && (
