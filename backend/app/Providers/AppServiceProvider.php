@@ -15,7 +15,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(\App\Services\Sla\BusinessScheduleRepository::class);
+        $this->app->scoped(\App\Services\Sla\SlaPolicyRepository::class);
     }
 
     /**

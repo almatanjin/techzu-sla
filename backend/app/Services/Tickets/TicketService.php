@@ -12,6 +12,8 @@ use App\Exceptions\TicketVersionConflictException;
 use App\Models\Category;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\Sla\SlaCalculator;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -21,6 +23,7 @@ class TicketService
         private readonly TicketNumberGenerator $numberGenerator,
         private readonly TicketActivityLogger $activityLogger,
         private readonly TicketWorkflow $workflow,
+        private readonly SlaCalculator $slaCalculator,
     ) {}
 
     public function list(User $user, TicketFilterData|string $filter = 'active', int $perPage = 20): LengthAwarePaginator
@@ -64,6 +67,10 @@ class TicketService
             $query->whereNull('assigned_agent_id');
         }
 
+        if ($filter->slaStatus !== null) {
+            $query->whereSlaStatus($filter->slaStatus);
+        }
+
         return $query
             ->with([
                 'category:id,name',
@@ -78,6 +85,7 @@ class TicketService
     {
         return DB::transaction(function () use ($data, $actor): Ticket {
             $ticketNumber = $this->numberGenerator->next();
+            $deadlines = $this->slaCalculator->deadlinesFor($data->priority, CarbonImmutable::now());
 
             $ticket = new Ticket([
                 'ticket_number' => $ticketNumber,
@@ -90,6 +98,10 @@ class TicketService
                 'created_by_id' => $actor->id,
                 'assigned_agent_id' => null,
                 'lock_version' => 0,
+                'sla_policy_minutes' => $deadlines->policyMinutes,
+                'sla_started_at' => $deadlines->startedAt,
+                'sla_warning_at' => $deadlines->warningAt,
+                'sla_due_at' => $deadlines->dueAt,
             ]);
             $ticket->save();
 
@@ -138,6 +150,11 @@ class TicketService
             }
 
             if ($data->hasPriority && $data->priority !== null && $data->priority !== $fresh->priority) {
+                $deadlines = $this->slaCalculator->deadlinesFor($data->priority, CarbonImmutable::instance($fresh->sla_started_at));
+                $fresh->sla_policy_minutes = $deadlines->policyMinutes;
+                $fresh->sla_warning_at = $deadlines->warningAt;
+                $fresh->sla_due_at = $deadlines->dueAt;
+
                 $activitiesToLog[] = [
                     'type' => TicketActivityType::PriorityChanged,
                     'old' => ['priority' => $fresh->priority->value],

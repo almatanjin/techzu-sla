@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\SlaStatus;
 use App\Enums\TicketPriority;
 use App\Enums\TicketStatus;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Database\Factories\TicketFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +28,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'resolved_at',
     'closed_at',
     'lock_version',
+    'sla_policy_minutes',
+    'sla_started_at',
+    'sla_warning_at',
+    'sla_due_at',
 ])]
 class Ticket extends Model
 {
@@ -49,6 +56,10 @@ class Ticket extends Model
             'resolved_at' => 'datetime',
             'closed_at' => 'datetime',
             'lock_version' => 'integer',
+            'sla_policy_minutes' => 'integer',
+            'sla_started_at' => 'datetime',
+            'sla_warning_at' => 'datetime',
+            'sla_due_at' => 'datetime',
         ];
     }
 
@@ -92,6 +103,29 @@ class Ticket extends Model
         return $this->hasMany(TicketActivity::class);
     }
 
+    public function slaStatus(?CarbonInterface $at = null): SlaStatus
+    {
+        $at = $at ? CarbonImmutable::instance($at) : CarbonImmutable::now();
+
+        if (in_array($this->status, TicketStatus::active(), true)) {
+            if ($at->lt($this->sla_warning_at)) {
+                return SlaStatus::Within;
+            }
+            if ($at->lt($this->sla_due_at)) {
+                return SlaStatus::Approaching;
+            }
+
+            return SlaStatus::Breached;
+        }
+
+        $finishedAt = $this->resolved_at ?? $this->closed_at;
+        if ($finishedAt && $finishedAt->lte($this->sla_due_at)) {
+            return SlaStatus::Met;
+        }
+
+        return SlaStatus::Missed;
+    }
+
     /**
      * Scope a query to only include tickets visible to the given user.
      *
@@ -105,5 +139,28 @@ class Ticket extends Model
 
         return $query;
     }
-}
 
+    /**
+     * @param  Builder<Ticket>  $query
+     */
+    public function scopeWhereSlaStatus(Builder $query, SlaStatus $status, ?CarbonInterface $at = null): Builder
+    {
+        $at = $at ? CarbonImmutable::instance($at) : CarbonImmutable::now();
+        $activeValues = array_map(fn ($s) => $s->value, TicketStatus::active());
+        $closedValues = array_map(fn ($s) => $s->value, TicketStatus::closedView());
+
+        return match ($status) {
+            SlaStatus::Within => $query->whereIn('status', $activeValues)
+                ->where('sla_warning_at', '>', $at),
+            SlaStatus::Approaching => $query->whereIn('status', $activeValues)
+                ->where('sla_warning_at', '<=', $at)
+                ->where('sla_due_at', '>', $at),
+            SlaStatus::Breached => $query->whereIn('status', $activeValues)
+                ->where('sla_due_at', '<=', $at),
+            SlaStatus::Met => $query->whereIn('status', $closedValues)
+                ->whereRaw('COALESCE(resolved_at, closed_at) <= sla_due_at'),
+            SlaStatus::Missed => $query->whereIn('status', $closedValues)
+                ->whereRaw('COALESCE(resolved_at, closed_at) > sla_due_at'),
+        };
+    }
+}

@@ -18,6 +18,9 @@ class TicketListResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $user = $request->user();
+        $viewerIsStaff = $user !== null && ($user->isAdmin() || $user->isAgent());
+
         return [
             'id' => $this->id,
             'ticket_number' => $this->ticket_number,
@@ -38,7 +41,13 @@ class TicketListResource extends JsonResource
                 'name' => $this->assignedAgent->name,
             ] : null,
             'created_at' => $this->created_at?->toISOString(),
+            'sla' => $this->when($viewerIsStaff, fn () => [
+                'status' => $this->slaStatus()->value,
+                'started_at' => $this->sla_started_at?->toISOString(),
+                'warning_at' => $this->sla_warning_at?->toISOString(),
+                'due_at' => $this->sla_due_at?->toISOString(),
+                'policy_minutes' => (int) $this->sla_policy_minutes,
+            ]),
         ];
     }
 }
-

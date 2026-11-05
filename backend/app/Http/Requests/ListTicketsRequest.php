@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Data\TicketFilterData;
+use App\Enums\SlaStatus;
 use App\Enums\TicketPriority;
 use App\Enums\TicketStatus;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,12 +28,16 @@ class ListTicketsRequest extends FormRequest
             'category_id' => ['sometimes', 'nullable', 'integer', 'exists:categories,id'],
             'search' => ['sometimes', 'nullable', 'string', 'max:100'],
             'assigned' => ['sometimes', 'nullable', 'string', Rule::in(['me', 'unassigned'])],
+            'sla_status' => ['sometimes', 'nullable', 'string', Rule::in(array_map(fn ($s) => $s->value, SlaStatus::cases()))],
             'page' => ['sometimes', 'integer', 'min:1'],
         ];
     }
 
     public function toFilterData(): TicketFilterData
     {
+        $user = $this->user();
+        $isStaff = $user !== null && ($user->isAdmin() || $user->isAgent());
+
         return new TicketFilterData(
             view: $this->input('view', 'active'),
             status: $this->filled('status') ? TicketStatus::tryFrom($this->input('status')) : null,
@@ -40,7 +45,7 @@ class ListTicketsRequest extends FormRequest
             categoryId: $this->filled('category_id') ? (int) $this->input('category_id') : null,
             search: $this->filled('search') ? trim((string) $this->input('search')) : null,
             assigned: $this->filled('assigned') ? $this->input('assigned') : null,
+            slaStatus: ($isStaff && $this->filled('sla_status')) ? SlaStatus::tryFrom($this->input('sla_status')) : null,
         );
     }
 }
-
