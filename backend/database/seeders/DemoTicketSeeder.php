@@ -11,6 +11,7 @@ use App\Models\Ticket;
 use App\Models\TicketActivity;
 use App\Models\User;
 use App\Services\Sla\SlaCalculator;
+use App\Services\Sla\SlaEscalationService;
 use App\Services\Tickets\TicketNumberGenerator;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -109,6 +110,7 @@ class DemoTicketSeeder extends Seeder
                     ? (clone $createdAt)->addHours(5)
                     : null;
 
+                $customDeadlines = null;
                 if ($ticketIndex === 39) {
                     $status = TicketStatus::Open;
                     $priority = TicketPriority::Low;
@@ -139,6 +141,20 @@ class DemoTicketSeeder extends Seeder
                     $resolvedAt = Carbon::instance($deadlines->dueAt)->addHours(2);
                     $updatedAt = clone $resolvedAt;
                     $closedAt = null;
+                } elseif ($ticketIndex === 35) {
+                    $status = TicketStatus::InProgress;
+                    $priority = TicketPriority::High;
+                    $assignedAgent = $agents[0] ?? null;
+                    $createdAt = Carbon::now()->subMinutes(10);
+                    $updatedAt = clone $createdAt;
+                    $resolvedAt = null;
+                    $closedAt = null;
+                    $customDeadlines = (object) [
+                        'policyMinutes' => 120,
+                        'startedAt' => CarbonImmutable::now()->subMinutes(10),
+                        'warningAt' => CarbonImmutable::now()->addMinutes(3),
+                        'dueAt' => CarbonImmutable::now()->addMinutes(12),
+                    ];
                 }
 
                 DB::transaction(function () use (
@@ -153,10 +169,12 @@ class DemoTicketSeeder extends Seeder
                     $createdAt,
                     $updatedAt,
                     $resolvedAt,
-                    $closedAt
+                    $closedAt,
+                    $ticketIndex,
+                    $customDeadlines
                 ) {
                     $ticketNumber = $generator->next();
-                    $deadlines = $slaCalculator->deadlinesFor($priority, CarbonImmutable::instance($createdAt));
+                    $deadlines = $customDeadlines ?? $slaCalculator->deadlinesFor($priority, CarbonImmutable::instance($createdAt));
 
                     $ticket = Ticket::create([
                         'ticket_number' => $ticketNumber,
@@ -164,6 +182,7 @@ class DemoTicketSeeder extends Seeder
                         'category_id' => $category->id,
                         'created_by_id' => $customer->id,
                         'assigned_agent_id' => $assignedAgent?->id,
+                        'first_assigned_at' => $assignedAgent ? (clone $createdAt)->addMinute() : null,
                         'priority' => $priority,
                         'status' => $status,
                         'subject' => $subject,
@@ -189,7 +208,27 @@ class DemoTicketSeeder extends Seeder
                         'created_at' => $createdAt,
                     ]);
 
-                    // 2. Status change activity if non-open
+                    // 2. Assigned activity right after created if assigned
+                    if ($assignedAgent !== null) {
+                        $admin = User::where('role', UserRole::Admin)->first();
+                        $assignedActor = ($ticketIndex % 2 === 0) ? null : $admin;
+
+                        TicketActivity::create([
+                            'ticket_id' => $ticket->id,
+                            'actor_id' => $assignedActor?->id,
+                            'type' => TicketActivityType::Assigned,
+                            'old_values' => null,
+                            'new_values' => [
+                                'agent' => [
+                                    'id' => (int) $assignedAgent->id,
+                                    'name' => (string) $assignedAgent->name,
+                                ],
+                            ],
+                            'created_at' => (clone $createdAt)->addMinute(),
+                        ]);
+                    }
+
+                    // 3. Status change activity if non-open
                     if ($status !== TicketStatus::Open) {
                         TicketActivity::create([
                             'ticket_id' => $ticket->id,
@@ -209,5 +248,17 @@ class DemoTicketSeeder extends Seeder
                 $ticketIndex++;
             }
         }
+
+        foreach ($agents as $agent) {
+            $latest = Ticket::where('assigned_agent_id', $agent->id)
+                ->whereNotNull('first_assigned_at')
+                ->max('first_assigned_at');
+            if ($latest) {
+                $agent->last_assigned_at = $latest;
+                $agent->save();
+            }
+        }
+
+        app(SlaEscalationService::class)->run(CarbonImmutable::now());
     }
 }

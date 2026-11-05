@@ -71,14 +71,22 @@ test('out-of-range sla policy values answer 422', function (array $payload, stri
     [['warning_threshold_percent' => 100], 'warning_threshold_percent'],
 ]);
 
-test('agents and customers are forbidden from sla policies endpoints', function () {
-    // Agent
+test('agent can get sla policies but cannot patch them', function () {
     $this->withToken($this->agentToken)
         ->getJson('/api/v1/admin/sla-policies')
-        ->assertForbidden();
+        ->assertOk();
 
     $this->withToken($this->agentToken)
         ->patchJson('/api/v1/admin/sla-policies/high', ['resolution_minutes' => 600])
+        ->assertForbidden();
+});
+
+test('customers and inactive agents are forbidden from sla policies endpoints', function () {
+    // Inactive Agent
+    $inactiveAgent = User::factory()->agent()->create(['is_active' => false]);
+    $inactiveAgentToken = $inactiveAgent->createToken('inactive-agent')->plainTextToken;
+    $this->withToken($inactiveAgentToken)
+        ->getJson('/api/v1/admin/sla-policies')
         ->assertForbidden();
 
     // Customer

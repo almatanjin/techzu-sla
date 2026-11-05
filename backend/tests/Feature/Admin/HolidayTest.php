@@ -75,13 +75,24 @@ test('admin can delete a holiday with 204 response', function () {
     expect(Holiday::find($holiday->id))->toBeNull();
 });
 
-test('agents and customers are forbidden from holidays endpoints', function () {
+test('agent can list holidays but cannot create or delete them', function () {
     $holiday = Holiday::create(['date' => '2026-05-01', 'name' => 'May Day']);
 
-    // Agent
-    $this->withToken($this->agentToken)->getJson('/api/v1/admin/holidays')->assertForbidden();
+    // Agent list
+    $this->withToken($this->agentToken)->getJson('/api/v1/admin/holidays')->assertOk();
+    // Agent create
     $this->withToken($this->agentToken)->postJson('/api/v1/admin/holidays', ['date' => '2026-06-01', 'name' => 'Day'])->assertForbidden();
+    // Agent delete
     $this->withToken($this->agentToken)->deleteJson("/api/v1/admin/holidays/{$holiday->id}")->assertForbidden();
+});
+
+test('customers and inactive agents are forbidden from holidays endpoints', function () {
+    $holiday = Holiday::create(['date' => '2026-05-01', 'name' => 'May Day']);
+
+    // Inactive Agent
+    $inactiveAgent = User::factory()->agent()->create(['is_active' => false]);
+    $inactiveAgentToken = $inactiveAgent->createToken('inactive-agent')->plainTextToken;
+    $this->withToken($inactiveAgentToken)->getJson('/api/v1/admin/holidays')->assertForbidden();
 
     // Customer
     $this->app['auth']->forgetGuards();

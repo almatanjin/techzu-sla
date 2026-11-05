@@ -226,7 +226,70 @@ it('runs a constant number of database queries regardless of page size', functio
         ->and($queriesFor20)->toBe(4);
 });
 
-it('filters tickets by specific status, category, priority, search, and assigned agent', function () {
+it('filters tickets by priority and category together', function () {
+    $billing = Category::factory()->create(['name' => 'Billing']);
+    $hardware = Category::factory()->create(['name' => 'Hardware']);
+
+    $highBilling = Ticket::factory()->open()->create([
+        'category_id' => $billing->id,
+        'priority' => TicketPriority::High,
+    ]);
+    Ticket::factory()->open()->create([
+        'category_id' => $hardware->id,
+        'priority' => TicketPriority::High,
+    ]);
+    Ticket::factory()->open()->create([
+        'category_id' => $billing->id,
+        'priority' => TicketPriority::Low,
+    ]);
+
+    $response = $this->withToken($this->agentToken)
+        ->getJson("/api/v1/tickets?priority=high&category_id={$billing->id}");
+
+    $response->assertOk();
+    $ids = collect($response->json('data'))->pluck('id')->all();
+    expect($ids)->toBe([$highBilling->id]);
+});
+
+it('overrides view tab when explicit status is provided', function () {
+    Ticket::factory()->open()->create();
+    $resolved = Ticket::factory()->resolved()->create();
+
+    $response = $this->withToken($this->agentToken)
+        ->getJson('/api/v1/tickets?view=active&status=resolved');
+
+    $response->assertOk();
+    $ids = collect($response->json('data'))->pluck('id')->all();
+    expect($ids)->toBe([$resolved->id]);
+});
+
+it('rejects invalid filter values with 422 on the respective field', function (string $query, string $field) {
+    $this->withToken($this->agentToken)
+        ->getJson("/api/v1/tickets?{$query}")
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field]);
+})->with([
+    ['priority=urgent', 'priority'],
+    ['status=done', 'status'],
+    ['category_id=999999', 'category_id'],
+]);
+
+it('filters by assigned=me and assigned=unassigned for an agent', function () {
+    $mine = Ticket::factory()->open()->create(['assigned_agent_id' => $this->agent->id]);
+    $unassigned = Ticket::factory()->open()->create(['assigned_agent_id' => null]);
+    $otherAgent = User::factory()->agent()->create();
+    Ticket::factory()->open()->create(['assigned_agent_id' => $otherAgent->id]);
+
+    $resMe = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?assigned=me');
+    $resMe->assertOk();
+    expect(collect($resMe->json('data'))->pluck('id')->all())->toBe([$mine->id]);
+
+    $resUnassigned = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?assigned=unassigned');
+    $resUnassigned->assertOk();
+    expect(collect($resUnassigned->json('data'))->pluck('id')->all())->toBe([$unassigned->id]);
+});
+
+it('filters tickets by single criteria using dataset', function (callable $queryParam, callable $expectedTicket) {
     $cat1 = Category::factory()->create(['name' => 'Billing']);
     $cat2 = Category::factory()->create(['name' => 'Technical']);
 
@@ -234,55 +297,31 @@ it('filters tickets by specific status, category, priority, search, and assigned
         'category_id' => $cat1->id,
         'priority' => TicketPriority::Critical,
         'subject' => 'Urgent billing problem',
-        'assigned_agent_id' => $this->agent->id,
     ]);
-
     $ticket2 = Ticket::factory()->resolved()->create([
         'category_id' => $cat2->id,
         'priority' => TicketPriority::Low,
         'subject' => 'Resolved printer setup',
-        'assigned_agent_id' => null,
     ]);
 
-    // Filter by specific status: resolved
-    $resStatus = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?status=resolved');
-    $resStatus->assertOk();
-    $statusIds = collect($resStatus->json('data'))->pluck('id')->all();
-    expect($statusIds)->toContain($ticket2->id)
-        ->and($statusIds)->not->toContain($ticket1->id);
+    $param = $queryParam($cat1, $cat2);
+    $expected = $expectedTicket($ticket1, $ticket2);
 
-    // Filter by category: cat1
-    $resCat = $this->withToken($this->agentToken)->getJson("/api/v1/tickets?category_id={$cat1->id}");
-    $resCat->assertOk();
-    $catIds = collect($resCat->json('data'))->pluck('id')->all();
-    expect($catIds)->toContain($ticket1->id)
-        ->and($catIds)->not->toContain($ticket2->id);
-
-    // Filter by priority: critical
-    $resPri = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?priority=critical');
-    $resPri->assertOk();
-    $priIds = collect($resPri->json('data'))->pluck('id')->all();
-    expect($priIds)->toContain($ticket1->id)
-        ->and($priIds)->not->toContain($ticket2->id);
-
-    // Filter by search: "printer" across all views
-    $resSearch = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?search=printer&view=all');
-    $resSearch->assertOk();
-    $searchIds = collect($resSearch->json('data'))->pluck('id')->all();
-    expect($searchIds)->toContain($ticket2->id)
-        ->and($searchIds)->not->toContain($ticket1->id);
-
-    // Filter by assigned: me
-    $resAssignedMe = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?assigned=me');
-    $resAssignedMe->assertOk();
-    $assignedMeIds = collect($resAssignedMe->json('data'))->pluck('id')->all();
-    expect($assignedMeIds)->toContain($ticket1->id)
-        ->and($assignedMeIds)->not->toContain($ticket2->id);
-
-    // Filter by assigned: unassigned
-    $resUnassigned = $this->withToken($this->agentToken)->getJson('/api/v1/tickets?status=resolved&assigned=unassigned');
-    $resUnassigned->assertOk();
-    $unassignedIds = collect($resUnassigned->json('data'))->pluck('id')->all();
-    expect($unassignedIds)->toContain($ticket2->id)
-        ->and($unassignedIds)->not->toContain($ticket1->id);
-});
+    $response = $this->withToken($this->agentToken)->getJson("/api/v1/tickets?{$param}");
+    $response->assertOk();
+    $ids = collect($response->json('data'))->pluck('id')->all();
+    expect($ids)->toBe([$expected->id]);
+})->with([
+    'status resolved' => [
+        fn ($cat1, $cat2) => 'status=resolved',
+        fn ($t1, $t2) => $t2,
+    ],
+    'category billing' => [
+        fn ($cat1, $cat2) => "category_id={$cat1->id}",
+        fn ($t1, $t2) => $t1,
+    ],
+    'priority critical' => [
+        fn ($cat1, $cat2) => 'priority=critical',
+        fn ($t1, $t2) => $t1,
+    ],
+]);

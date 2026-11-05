@@ -65,5 +65,27 @@ class TicketPolicy
 
         return false;
     }
+
+    public function assign(User $user, Ticket $ticket): bool
+    {
+        return (bool) $user->is_active
+            && $user->isAdmin()
+            && in_array($ticket->status, TicketStatus::active(), true);
+    }
+
+    public function claim(User $user, Ticket $ticket): bool
+    {
+        return (bool) $user->is_active
+            && ($user->isAdmin() || $user->isAgent())
+            && in_array($ticket->status, TicketStatus::active(), true);
+    }
+
+    public function release(User $user, Ticket $ticket): bool
+    {
+        return (bool) $user->is_active
+            && $ticket->assigned_agent_id === $user->id
+            && in_array($ticket->status, TicketStatus::active(), true);
+    }
 }
+
 

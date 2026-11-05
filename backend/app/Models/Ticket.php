@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'customer_id',
     'created_by_id',
     'assigned_agent_id',
+    'first_assigned_at',
     'resolved_at',
     'closed_at',
     'lock_version',
@@ -32,6 +33,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'sla_started_at',
     'sla_warning_at',
     'sla_due_at',
+    'sla_warning_notified_at',
+    'sla_breached_at',
+    'escalated_at',
 ])]
 class Ticket extends Model
 {
@@ -53,6 +57,7 @@ class Ticket extends Model
         return [
             'status' => TicketStatus::class,
             'priority' => TicketPriority::class,
+            'first_assigned_at' => 'datetime',
             'resolved_at' => 'datetime',
             'closed_at' => 'datetime',
             'lock_version' => 'integer',
@@ -60,6 +65,9 @@ class Ticket extends Model
             'sla_started_at' => 'datetime',
             'sla_warning_at' => 'datetime',
             'sla_due_at' => 'datetime',
+            'sla_warning_notified_at' => 'datetime',
+            'sla_breached_at' => 'datetime',
+            'escalated_at' => 'datetime',
         ];
     }
 
@@ -101,6 +109,22 @@ class Ticket extends Model
     public function activities(): HasMany
     {
         return $this->hasMany(TicketActivity::class);
+    }
+
+    /**
+     * @return HasMany<TicketMessage, $this>
+     */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(TicketMessage::class);
+    }
+
+    /**
+     * @return HasMany<Attachment, $this>
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(Attachment::class)->whereNull('ticket_message_id');
     }
 
     public function slaStatus(?CarbonInterface $at = null): SlaStatus

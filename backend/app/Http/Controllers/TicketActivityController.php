@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TicketActivityType;
 use App\Http\Resources\TicketActivityResource;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
@@ -14,10 +15,19 @@ class TicketActivityController extends Controller
     {
         Gate::authorize('view', $ticket);
 
-        $activities = $ticket->activities()
+        $query = $ticket->activities()
             ->with(['actor:id,name'])
-            ->orderBy('id', 'asc')
-            ->get();
+            ->orderBy('id', 'asc');
+
+        if ($request->user()->isCustomer()) {
+            $query->whereNotIn('type', [
+                TicketActivityType::InternalNoteAdded,
+                TicketActivityType::SlaWarning,
+                TicketActivityType::Escalated,
+            ]);
+        }
+
+        $activities = $query->get();
 
         return TicketActivityResource::collection($activities);
     }

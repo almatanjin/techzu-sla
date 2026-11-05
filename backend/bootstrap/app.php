@@ -19,4 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        $exceptions->render(function (\Illuminate\Http\Exceptions\PostTooLargeException $e, Request $request) {
+            $message = $e->getMessage();
+
+            return response()->json([
+                'message' => ! empty($message) ? $message : 'The upload is too large.',
+            ], 413);
+        });
     })->create();

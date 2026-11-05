@@ -53,12 +53,14 @@ class TicketResource extends JsonResource
             'resolved_at' => $this->resolved_at?->toISOString(),
             'closed_at' => $this->closed_at?->toISOString(),
             'lock_version' => (int) $this->lock_version,
+            'attachments' => AttachmentResource::collection($this->whenLoaded('attachments', fn () => $this->attachments, [])),
             'sla' => $this->when($viewerIsStaff, fn () => [
                 'status' => $this->slaStatus()->value,
                 'started_at' => $this->sla_started_at?->toISOString(),
                 'warning_at' => $this->sla_warning_at?->toISOString(),
                 'due_at' => $this->sla_due_at?->toISOString(),
                 'policy_minutes' => (int) $this->sla_policy_minutes,
+                'escalated_at' => $this->escalated_at?->toISOString(),
             ]),
             'permissions' => [
                 'can_edit_content' => $this->canUpdateContent($user),
@@ -66,6 +68,11 @@ class TicketResource extends JsonResource
                 'can_update_content' => $this->canUpdateContent($user),
                 'can_update_classification' => $this->canUpdateClassification($user),
                 'allowed_statuses' => $this->allowedStatuses($user),
+                'can_assign' => $user !== null && $user->can('assign', $this->resource),
+                'can_claim' => $user !== null && $this->assigned_agent_id === null && $user->can('claim', $this->resource),
+                'can_release' => $user !== null && $user->can('release', $this->resource),
+                'can_reply' => $user !== null && app(\App\Policies\TicketMessagePolicy::class)->canReply($user, $this->resource),
+                'can_add_internal_note' => $user !== null && app(\App\Policies\TicketMessagePolicy::class)->canAddInternalNote($user, $this->resource),
             ],
         ];
     }

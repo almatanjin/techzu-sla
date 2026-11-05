@@ -30,5 +30,11 @@ class UserPolicy
     {
         return ($user->isAdmin() || $user->isAgent()) && (bool) $user->is_active;
     }
+
+    public function viewAgents(User $user): bool
+    {
+        return $user->isAdmin() && (bool) $user->is_active;
+    }
 }
+
 

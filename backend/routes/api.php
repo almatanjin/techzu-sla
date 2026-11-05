@@ -1,17 +1,23 @@
 <?php
 
+use App\Http\Controllers\Admin\AgentController as AdminAgentController;
 use App\Http\Controllers\Admin\BusinessHourController as AdminBusinessHourController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
 use App\Http\Controllers\Admin\SlaPolicyController as AdminSlaPolicyController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\AttachmentDownloadController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\TicketActivityController;
+use App\Http\Controllers\TicketAssignmentController;
+use App\Http\Controllers\TicketClaimController;
 use App\Http\Controllers\TicketController;
+use App\Http\Controllers\TicketMessageController;
+use App\Http\Controllers\TicketReleaseController;
 use App\Http\Controllers\TicketStatusController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,15 +43,23 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');
     Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
+    Route::get('customers/{user}', [CustomerController::class, 'show'])->name('customers.show');
 
     Route::get('tickets', [TicketController::class, 'index'])->name('tickets.index');
     Route::post('tickets', [TicketController::class, 'store'])->name('tickets.store');
     Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
     Route::patch('tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
+    Route::put('tickets/{ticket}/assignment', [TicketAssignmentController::class, 'update'])->name('tickets.assignment');
+    Route::post('tickets/{ticket}/claim', TicketClaimController::class)->name('tickets.claim');
+    Route::post('tickets/{ticket}/release', TicketReleaseController::class)->name('tickets.release');
     Route::post('tickets/{ticket}/status', TicketStatusController::class)->name('tickets.status');
     Route::get('tickets/{ticket}/activities', [TicketActivityController::class, 'index'])->name('tickets.activities');
+    Route::get('tickets/{ticket}/messages', [TicketMessageController::class, 'index'])->name('tickets.messages.index');
+    Route::post('tickets/{ticket}/messages', [TicketMessageController::class, 'store'])->name('tickets.messages.store');
+    Route::get('attachments/{attachment}/download', AttachmentDownloadController::class)->name('attachments.download');
 
     Route::prefix('admin')->name('admin.')->group(function (): void {
+        Route::get('agents', [AdminAgentController::class, 'index'])->name('agents.index');
         Route::apiResource('users', AdminUserController::class)->only(['index', 'store', 'show', 'update']);
         Route::apiResource('categories', AdminCategoryController::class)->only(['store', 'update']);
         Route::get('sla-policies', [AdminSlaPolicyController::class, 'index'])->name('sla-policies.index');

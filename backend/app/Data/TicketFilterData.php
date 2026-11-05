@@ -15,6 +15,11 @@ readonly class TicketFilterData
         public ?int $categoryId = null,
         public ?string $search = null,
         public ?string $assigned = null,
+        public ?int $customerId = null,
+        public ?string $createdFrom = null,
+        public ?string $createdTo = null,
         public ?SlaStatus $slaStatus = null,
+        public ?string $sort = null,
+        public ?int $perPage = 20,
     ) {}
 }

@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -9,3 +10,12 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)->use(LazilyRefreshDatabase::class)->in('Feature');
+pest()->extend(TestCase::class)->use(DatabaseTruncation::class)->in('Concurrency');
+pest()->extend(TestCase::class)->use(DatabaseTruncation::class)->in('Search');
+
+function fixtureUpload(string $filename): \Illuminate\Http\UploadedFile
+{
+    $path = __DIR__.'/Fixtures/attachments/'.$filename;
+
+    return new \Illuminate\Http\UploadedFile($path, $filename, null, null, true);
+}

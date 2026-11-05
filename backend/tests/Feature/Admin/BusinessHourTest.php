@@ -157,15 +157,25 @@ test('invalid business hours payloads return 422', function () {
         ->assertJsonValidationErrors(['days.0.opens_at']);
 });
 
-test('agents and customers cannot access business hours endpoints', function () {
+test('agent can get business hours but cannot update them', function () {
     $this->withToken($this->agentToken)
         ->getJson('/api/v1/admin/business-hours')
-        ->assertForbidden();
+        ->assertOk();
 
     $this->withToken($this->agentToken)
         ->putJson('/api/v1/admin/business-hours', ['days' => []])
         ->assertForbidden();
+});
 
+test('customers and inactive agents cannot access business hours endpoints', function () {
+    // Inactive agent
+    $inactiveAgent = User::factory()->agent()->create(['is_active' => false]);
+    $inactiveAgentToken = $inactiveAgent->createToken('inactive-agent')->plainTextToken;
+    $this->withToken($inactiveAgentToken)
+        ->getJson('/api/v1/admin/business-hours')
+        ->assertForbidden();
+
+    // Customer
     $this->app['auth']->forgetGuards();
     $this->withToken($this->customerToken)
         ->getJson('/api/v1/admin/business-hours')

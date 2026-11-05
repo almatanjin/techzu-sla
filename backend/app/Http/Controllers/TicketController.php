@@ -39,6 +39,7 @@ class TicketController extends Controller
             'customer:id,name,email',
             'createdBy:id,name',
             'assignedAgent:id,name',
+            'attachments',
         ]);
 
         return new TicketResource($ticket);

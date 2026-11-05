@@ -57,3 +57,54 @@ it('forbids customers from accessing customer lookup with 403', function () {
         ->assertForbidden();
 });
 
+it('allows an agent to fetch a customer by id and returns id, name and email', function () {
+    $ana = User::factory()->customer()->create(['name' => 'Ana Rahman', 'email' => 'ana@example.test']);
+
+    $response = $this->withToken($this->agentToken)->getJson("/api/v1/customers/{$ana->id}");
+
+    $response->assertOk();
+    $data = $response->json('data') ?? $response->json();
+    expect($data)->toMatchArray([
+        'id' => $ana->id,
+        'name' => 'Ana Rahman',
+        'email' => 'ana@example.test',
+    ]);
+});
+
+it('returns a deactivated customer when looked up by id', function () {
+    $deactivated = User::factory()->customer()->inactive()->create([
+        'name' => 'Anton Inactive',
+        'email' => 'anton@example.test',
+    ]);
+
+    $response = $this->withToken($this->agentToken)->getJson("/api/v1/customers/{$deactivated->id}");
+
+    $response->assertOk();
+    $data = $response->json('data') ?? $response->json();
+    expect($data)->toMatchArray([
+        'id' => $deactivated->id,
+        'name' => 'Anton Inactive',
+        'email' => 'anton@example.test',
+    ]);
+});
+
+it('returns 404 when looking up an agent id or unknown id', function () {
+    $andy = User::factory()->agent()->create(['name' => 'Andy Agent']);
+
+    $this->withToken($this->agentToken)
+        ->getJson("/api/v1/customers/{$andy->id}")
+        ->assertNotFound();
+
+    $this->withToken($this->agentToken)
+        ->getJson('/api/v1/customers/999999')
+        ->assertNotFound();
+});
+
+it('forbids a customer from looking up another customer by id with 403', function () {
+    $ben = User::factory()->customer()->create(['name' => 'Ben']);
+
+    $this->withToken($this->customerToken)
+        ->getJson("/api/v1/customers/{$ben->id}")
+        ->assertForbidden();
+});
+

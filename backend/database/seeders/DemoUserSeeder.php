@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\UserRole;
+use App\Models\Category;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -15,6 +16,26 @@ class DemoUserSeeder extends Seeder
         if (app()->isProduction()) {
             return;
         }
+
+        $agentSettings = [
+            'agent1@techzu-sla.test' => [
+                'max_open_tickets' => 15,
+                'is_available' => true,
+                'categories' => ['Billing', 'Account'],
+            ],
+            'agent2@techzu-sla.test' => [
+                'max_open_tickets' => 15,
+                'is_available' => true,
+                'categories' => ['Technical'],
+            ],
+            'agent3@techzu-sla.test' => [
+                'max_open_tickets' => null,
+                'is_available' => false,
+                'categories' => ['General', 'Technical'],
+            ],
+        ];
+
+        $categoriesByName = Category::all()->keyBy('name');
 
         $accounts = [
             [
@@ -70,7 +91,22 @@ class DemoUserSeeder extends Seeder
             $user->role = $account['role'];
             $user->password = self::SHARED_PASSWORD;
             $user->is_active = true;
+
+            if (isset($agentSettings[$account['email']])) {
+                $settings = $agentSettings[$account['email']];
+                $user->max_open_tickets = $settings['max_open_tickets'];
+                $user->is_available = $settings['is_available'];
+            }
+
             $user->save();
+
+            if (isset($agentSettings[$account['email']])) {
+                $categoryIds = collect($agentSettings[$account['email']]['categories'])
+                    ->map(fn ($name) => $categoriesByName->get($name)?->id)
+                    ->filter()
+                    ->all();
+                $user->categories()->sync($categoryIds);
+            }
         }
     }
 }

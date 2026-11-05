@@ -73,4 +73,11 @@ class UserFactory extends Factory
             'is_active' => false,
         ]);
     }
+
+    public function unavailable(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_available' => false,
+        ]);
+    }
 }

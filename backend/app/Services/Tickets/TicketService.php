@@ -8,10 +8,15 @@ use App\Data\TicketFilterData;
 use App\Data\UpdateTicketData;
 use App\Enums\TicketActivityType;
 use App\Enums\TicketStatus;
+use App\Events\TicketCreated;
+use App\Events\TicketResolved;
 use App\Exceptions\TicketVersionConflictException;
+use App\Jobs\AutoAssignTicket;
+use App\Models\Attachment;
 use App\Models\Category;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Search\TicketQueryBuilder;
 use App\Services\Sla\SlaCalculator;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -24,97 +29,86 @@ class TicketService
         private readonly TicketActivityLogger $activityLogger,
         private readonly TicketWorkflow $workflow,
         private readonly SlaCalculator $slaCalculator,
+        private readonly AttachmentStorage $attachmentStorage,
+        private readonly TicketQueryBuilder $queryBuilder,
     ) {}
 
-    public function list(User $user, TicketFilterData|string $filter = 'active', int $perPage = 20): LengthAwarePaginator
+    public function list(User $user, TicketFilterData|string $filter = 'active', ?int $perPage = null): LengthAwarePaginator
     {
         if (is_string($filter)) {
             $filter = new TicketFilterData(view: $filter);
         }
 
-        $query = Ticket::query()->visibleTo($user);
+        $perPage = $perPage ?? $filter->perPage ?? 20;
 
-        if ($filter->status !== null) {
-            $query->where('status', $filter->status->value);
-        } elseif ($filter->view === 'closed') {
-            $statuses = TicketStatus::closedView();
-            $query->whereIn('status', array_map(fn ($s) => $s->value, $statuses));
-        } elseif ($filter->view !== 'all') {
-            $statuses = TicketStatus::active();
-            $query->whereIn('status', array_map(fn ($s) => $s->value, $statuses));
-        }
-
-        if ($filter->categoryId !== null) {
-            $query->where('category_id', $filter->categoryId);
-        }
-
-        if ($filter->priority !== null) {
-            $query->where('priority', $filter->priority->value);
-        }
-
-        if ($filter->search !== null && $filter->search !== '') {
-            $term = '%' . $filter->search . '%';
-            $query->where(function ($q) use ($term) {
-                $q->where('ticket_number', 'like', $term)
-                    ->orWhere('subject', 'like', $term)
-                    ->orWhere('description', 'like', $term);
-            });
-        }
-
-        if ($filter->assigned === 'me') {
-            $query->where('assigned_agent_id', $user->id);
-        } elseif ($filter->assigned === 'unassigned') {
-            $query->whereNull('assigned_agent_id');
-        }
-
-        if ($filter->slaStatus !== null) {
-            $query->whereSlaStatus($filter->slaStatus);
-        }
-
-        return $query
-            ->with([
-                'category:id,name',
-                'customer:id,name,email',
-                'assignedAgent:id,name',
-            ])
-            ->orderByDesc('id')
-            ->paginate($perPage);
+        return $this->queryBuilder->paginate($user, $filter, $perPage);
     }
 
     public function create(CreateTicketData $data, User $actor): Ticket
     {
-        return DB::transaction(function () use ($data, $actor): Ticket {
-            $ticketNumber = $this->numberGenerator->next();
-            $deadlines = $this->slaCalculator->deadlinesFor($data->priority, CarbonImmutable::now());
+        $storedFiles = [];
 
-            $ticket = new Ticket([
-                'ticket_number' => $ticketNumber,
-                'subject' => $data->subject,
-                'description' => $data->description,
-                'priority' => $data->priority,
-                'status' => TicketStatus::Open,
-                'category_id' => $data->categoryId,
-                'customer_id' => $data->customerId,
-                'created_by_id' => $actor->id,
-                'assigned_agent_id' => null,
-                'lock_version' => 0,
-                'sla_policy_minutes' => $deadlines->policyMinutes,
-                'sla_started_at' => $deadlines->startedAt,
-                'sla_warning_at' => $deadlines->warningAt,
-                'sla_due_at' => $deadlines->dueAt,
-            ]);
-            $ticket->save();
+        try {
+            return DB::transaction(function () use ($data, $actor, &$storedFiles): Ticket {
+                $ticketNumber = $this->numberGenerator->next();
+                $deadlines = $this->slaCalculator->deadlinesFor($data->priority, CarbonImmutable::now());
 
-            $this->activityLogger->log(
-                $ticket,
-                TicketActivityType::Created,
-                $actor
-            );
+                $ticket = new Ticket([
+                    'ticket_number' => $ticketNumber,
+                    'subject' => $data->subject,
+                    'description' => $data->description,
+                    'priority' => $data->priority,
+                    'status' => TicketStatus::Open,
+                    'category_id' => $data->categoryId,
+                    'customer_id' => $data->customerId,
+                    'created_by_id' => $actor->id,
+                    'assigned_agent_id' => null,
+                    'lock_version' => 0,
+                    'sla_policy_minutes' => $deadlines->policyMinutes,
+                    'sla_started_at' => $deadlines->startedAt,
+                    'sla_warning_at' => $deadlines->warningAt,
+                    'sla_due_at' => $deadlines->dueAt,
+                ]);
+                $ticket->save();
 
-            $ticket->load(['category', 'customer', 'createdBy', 'assignedAgent']);
+                if (! empty($data->attachments)) {
+                    $storedFiles = $this->attachmentStorage->put($data->attachments, $ticket);
+                    foreach ($storedFiles as $stored) {
+                        Attachment::create([
+                            'ticket_id' => $ticket->id,
+                            'ticket_message_id' => null,
+                            'uploaded_by_id' => $actor->id,
+                            'disk' => $stored->disk,
+                            'path' => $stored->path,
+                            'original_name' => $stored->originalName,
+                            'mime_type' => $stored->mimeType,
+                            'size_bytes' => $stored->sizeBytes,
+                            'checksum_sha256' => $stored->checksumSha256,
+                            'created_at' => now(),
+                        ]);
+                    }
+                }
 
-            return $ticket;
-        });
+                $this->activityLogger->log(
+                    $ticket,
+                    TicketActivityType::Created,
+                    $actor
+                );
+
+                event(new TicketCreated($ticket, $actor));
+
+                AutoAssignTicket::dispatch($ticket->id)->afterCommit();
+
+                $ticket->load(['category', 'customer', 'createdBy', 'assignedAgent', 'attachments']);
+
+                return $ticket;
+            });
+        } catch (\Throwable $e) {
+            if (! empty($storedFiles)) {
+                $this->attachmentStorage->delete($storedFiles);
+            }
+            throw $e;
+        }
     }
 
     public function update(Ticket $ticket, UpdateTicketData $data, User $actor): Ticket
@@ -154,6 +148,14 @@ class TicketService
                 $fresh->sla_policy_minutes = $deadlines->policyMinutes;
                 $fresh->sla_warning_at = $deadlines->warningAt;
                 $fresh->sla_due_at = $deadlines->dueAt;
+
+                $now = CarbonImmutable::now();
+                if ($deadlines->warningAt->gt($now)) {
+                    $fresh->sla_warning_notified_at = null;
+                }
+                if ($deadlines->dueAt->gt($now)) {
+                    $fresh->sla_breached_at = null;
+                }
 
                 $activitiesToLog[] = [
                     'type' => TicketActivityType::PriorityChanged,
@@ -224,6 +226,10 @@ class TicketService
             }
 
             $fresh->save();
+
+            if ($newStatus === TicketStatus::Resolved) {
+                event(new TicketResolved($fresh, $actor));
+            }
 
             $this->activityLogger->log(
                 $fresh,

@@ -47,6 +47,7 @@ class TicketListResource extends JsonResource
                 'warning_at' => $this->sla_warning_at?->toISOString(),
                 'due_at' => $this->sla_due_at?->toISOString(),
                 'policy_minutes' => (int) $this->sla_policy_minutes,
+                'escalated_at' => $this->escalated_at?->toISOString(),
             ]),
         ];
     }

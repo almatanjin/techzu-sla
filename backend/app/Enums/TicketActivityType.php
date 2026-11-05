@@ -10,6 +10,13 @@ enum TicketActivityType: string
     case PriorityChanged = 'priority_changed';
     case CategoryChanged = 'category_changed';
     case StatusChanged = 'status_changed';
+    case Assigned = 'assigned';
+    case Claimed = 'claimed';
+    case Unassigned = 'unassigned';
+    case Replied = 'replied';
+    case InternalNoteAdded = 'internal_note_added';
+    case SlaWarning = 'sla_warning';
+    case Escalated = 'escalated';
 
     /**
      * @return list<string>

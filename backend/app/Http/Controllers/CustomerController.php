@@ -6,7 +6,9 @@ use App\Enums\UserRole;
 use App\Http\Requests\SearchCustomersRequest;
 use App\Http\Resources\CustomerResource;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Gate;
 
 class CustomerController extends Controller
 {
@@ -28,6 +30,17 @@ class CustomerController extends Controller
         $customers = $query->orderBy('name')->limit(20)->get();
 
         return CustomerResource::collection($customers);
+    }
+
+    public function show(Request $request, User $user): CustomerResource
+    {
+        Gate::authorize('searchCustomers', User::class);
+
+        if ($user->role !== UserRole::Customer) {
+            abort(404);
+        }
+
+        return new CustomerResource($user);
     }
 }
 

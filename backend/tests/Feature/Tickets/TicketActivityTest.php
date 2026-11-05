@@ -161,3 +161,60 @@ it('runs a constant number of database queries for 2 and 15 activity entries', f
     expect($queriesFor15)->toBe($queriesFor2);
 });
 
+it('omits sla_warning and escalated activities from customer responses while retaining system unassigned and all entries for staff', function () {
+    $ticket = Ticket::factory()->open()->create([
+        'customer_id' => $this->customer->id,
+    ]);
+
+    $created = TicketActivity::factory()->create([
+        'ticket_id' => $ticket->id,
+        'actor_id' => $this->customer->id,
+        'type' => TicketActivityType::Created,
+        'created_at' => now()->subMinutes(20),
+    ]);
+
+    $slaWarning = TicketActivity::factory()->create([
+        'ticket_id' => $ticket->id,
+        'actor_id' => null,
+        'type' => TicketActivityType::SlaWarning,
+        'created_at' => now()->subMinutes(15),
+    ]);
+
+    $unassigned = TicketActivity::factory()->create([
+        'ticket_id' => $ticket->id,
+        'actor_id' => null,
+        'type' => TicketActivityType::Unassigned,
+        'created_at' => now()->subMinutes(10),
+    ]);
+
+    $escalated = TicketActivity::factory()->create([
+        'ticket_id' => $ticket->id,
+        'actor_id' => null,
+        'type' => TicketActivityType::Escalated,
+        'created_at' => now()->subMinutes(5),
+    ]);
+
+    // Customer requests activities
+    $this->app['auth']->forgetGuards();
+    $custRes = $this->withToken($this->customerToken)
+        ->getJson("/api/v1/tickets/{$ticket->ticket_number}/activities");
+    $custRes->assertOk();
+    $custData = $custRes->json();
+    $custTypes = array_column($custData, 'type');
+
+    expect($custTypes)->toBe(['created', 'unassigned'])
+        ->and($custTypes)->not->toContain('sla_warning')
+        ->and($custTypes)->not->toContain('escalated');
+
+    // Agent requests activities
+    $this->app['auth']->forgetGuards();
+    $agentRes = $this->withToken($this->agentToken)
+        ->getJson("/api/v1/tickets/{$ticket->ticket_number}/activities");
+    $agentRes->assertOk();
+    $agentData = $agentRes->json();
+    $agentTypes = array_column($agentData, 'type');
+
+    expect($agentTypes)->toBe(['created', 'sla_warning', 'unassigned', 'escalated']);
+});
+
+
