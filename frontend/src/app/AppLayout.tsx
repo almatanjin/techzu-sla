@@ -9,11 +9,11 @@ export function AppLayout() {
     <div className="min-h-dvh bg-canvas text-fg">
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link to="/" className="text-lg font-semibold tracking-tight text-fg">
               Techzu SLA
             </Link>
-            <nav className="flex items-center gap-4 text-sm font-medium">
+            <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium">
               <NavLink to="/" end className="nav-link">
                 Home
               </NavLink>
