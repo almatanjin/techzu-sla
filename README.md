@@ -97,12 +97,70 @@ All API endpoints reside under the `/api/v1` prefix.
 | `GET` | `/api/v1/admin/users/{id}` | Admin only | Retrieve user details |
 | `PATCH` | `/api/v1/admin/users/{id}` | Admin only | Update user details, role, status or password |
 
+### Categories (`/api/v1/categories`, `/api/v1/admin/categories`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `GET` | `/api/v1/categories` | Authenticated | List active categories (Admins may include inactive with `include_inactive=1`) |
+| `POST` | `/api/v1/admin/categories` | Admin only | Create a new ticket category |
+| `PATCH` | `/api/v1/admin/categories/{id}` | Admin only | Rename, activate, or deactivate a category |
+
+### Customer Lookup (`/api/v1/customers`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `GET` | `/api/v1/customers` | Staff only | Search active customers by name or email fragment |
+
+### Tickets (`/api/v1/tickets`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `GET` | `/api/v1/tickets` | Authenticated | List tickets (`view=active` or `view=closed`, paginated) |
+| `POST` | `/api/v1/tickets` | Authenticated | Open a support ticket |
+| `GET` | `/api/v1/tickets/{ticket_number}` | Authenticated | Retrieve ticket details and permissions |
+| `PATCH` | `/api/v1/tickets/{ticket_number}` | Authenticated | Update ticket content or classification with `lock_version` |
+| `POST` | `/api/v1/tickets/{ticket_number}/status` | Authenticated | Transition ticket status with `lock_version` |
+| `GET` | `/api/v1/tickets/{ticket_number}/activities` | Authenticated | Retrieve ticket activity history timeline (oldest first) |
+
+## Ticket Status Workflow
+
+Ticket status transitions follow a state machine.
+Only authorized roles can perform specific transitions.
+Every status change requires the current `lock_version` for optimistic locking.
+
+| Current Status | Target Status | Allowed Roles | Notes |
+| -------------- | ------------- | ------------- | ----- |
+| `open` | `in_progress` | Staff (Admin, Agent) | Begins agent work on the ticket |
+| `open` | `waiting_for_customer` | Staff (Admin, Agent) | Pauses work while waiting for user input |
+| `open` | `resolved` | Staff (Admin, Agent) | Marks resolution and sets `resolved_at` |
+| `open` | `closed` | Staff, Ticket Owner (Customer) | Closes ticket and sets `closed_at` |
+| `in_progress` | `waiting_for_customer` | Staff (Admin, Agent) | Pauses work while waiting for user input |
+| `in_progress` | `resolved` | Staff (Admin, Agent) | Marks resolution and sets `resolved_at` |
+| `in_progress` | `closed` | Staff, Ticket Owner (Customer) | Closes ticket and sets `closed_at` |
+| `waiting_for_customer` | `in_progress` | Staff (Admin, Agent) | Resumes active agent work |
+| `waiting_for_customer` | `resolved` | Staff (Admin, Agent) | Marks resolution and sets `resolved_at` |
+| `waiting_for_customer` | `closed` | Staff, Ticket Owner (Customer) | Closes ticket and sets `closed_at` |
+| `resolved` | `open` | Ticket Owner (Customer) | Reopens resolved ticket and clears `resolved_at` |
+| `resolved` | `in_progress` | Staff (Admin, Agent) | Reopens resolved ticket and clears `resolved_at` |
+| `resolved` | `closed` | Staff, Ticket Owner (Customer) | Confirms closure and sets `closed_at` |
+| `closed` | *(none)* | *(none)* | Closed tickets are final |
+
+## Ticket Numbering Format
+
+Every ticket receives a unique sequential ticket number.
+The format is `{PREFIX}-{YEAR}-{SEQUENCE}`, for example `TKT-2026-000001`.
+The sequence restarts at 1 each year in the configured timezone.
+Numbers grow naturally past 6 digits without truncation.
+
 ## Environment variables
 
 Key configuration settings in `backend/.env`:
 
 - `FRONTEND_URL`: Allowed CORS origin and base URL for email links (default: `http://localhost:5173`).
 - `SANCTUM_TOKEN_EXPIRATION`: Personal access token validity period in minutes (default: `10080` minutes / 7 days).
+- `TICKET_NUMBER_PREFIX`: Prefix for ticket numbers (default: `TKT`).
+- `TICKET_NUMBER_PADDING`: Zero-padding width for sequential ticket numbers (default: `6`).
+- `TICKETS_TIMEZONE`: Timezone for determining creation year and sequence reset (default: `Asia/Dhaka`).
 
 ## Local services
 
@@ -144,6 +202,12 @@ Stop the stack (data is kept):
 
 ```bash
 docker compose down
+```
+
+Reset and reseed the development database:
+
+```bash
+docker compose exec app php artisan migrate:fresh --seed
 ```
 
 Stop the stack and delete the development database and installed npm packages:
