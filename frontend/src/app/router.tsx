@@ -8,6 +8,7 @@ import { LoginPage } from '../features/auth/LoginPage'
 import { RegisterPage } from '../features/auth/RegisterPage'
 import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
 import { CategoriesPage } from '../features/categories/CategoriesPage'
+import { SlaSettingsPage } from '../features/sla/SlaSettingsPage'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
 import { TicketsListPage } from '../features/tickets/TicketsListPage'
@@ -51,6 +52,7 @@ export function createAppRouter() {
                     { path: '/admin/users', element: <UsersListPage /> },
                     { path: '/admin/users/new', element: <UserFormPage /> },
                     { path: '/admin/users/:id/edit', element: <UserFormPage /> },
+                    { path: '/admin/sla', element: <SlaSettingsPage /> },
                   ],
                 },
               ],

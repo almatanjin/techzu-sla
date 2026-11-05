@@ -28,6 +28,9 @@ export function AppLayout() {
                   <NavLink to="/admin/users" className="nav-link">
                     Users
                   </NavLink>
+                  <NavLink to="/admin/sla" className="nav-link">
+                    SLA
+                  </NavLink>
                 </>
               )}
             </nav>
