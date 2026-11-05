@@ -6,7 +6,7 @@ export function GuestOnly() {
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-64 items-center justify-center text-slate-500">
+      <div className="flex min-h-64 items-center justify-center text-fg-subtle">
         Loading...
       </div>
     )

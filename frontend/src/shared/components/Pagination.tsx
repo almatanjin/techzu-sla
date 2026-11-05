@@ -13,8 +13,8 @@ export function Pagination({ meta, onPageChange }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-      <div className="text-sm text-slate-700">
+    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface px-4 py-3 sm:px-6">
+      <div className="text-sm text-fg-secondary">
         Showing <span className="font-medium">{from ?? 0}</span> to{' '}
         <span className="font-medium">{to ?? 0}</span> of{' '}
         <span className="font-medium">{total}</span> results
@@ -25,18 +25,18 @@ export function Pagination({ meta, onPageChange }: Props) {
           type="button"
           onClick={() => onPageChange(current_page - 1)}
           disabled={current_page <= 1}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-outline btn-sm"
         >
           Previous
         </button>
-        <span className="text-sm text-slate-600">
+        <span className="text-sm text-fg-muted">
           Page {current_page} of {last_page}
         </span>
         <button
           type="button"
           onClick={() => onPageChange(current_page + 1)}
           disabled={current_page >= last_page}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-outline btn-sm"
         >
           Next
         </button>
@@ -44,4 +44,3 @@ export function Pagination({ meta, onPageChange }: Props) {
     </div>
   )
 }
-
