@@ -118,18 +118,18 @@ export function CategoriesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Categories</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-2xl font-bold tracking-tight text-fg">Categories</h1>
+        <p className="mt-1 text-sm text-fg-muted">
           Manage the ticket categories used to classify customer requests.
         </p>
       </div>
 
       {/* Add Category Form */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900">Add New Category</h2>
+      <div className="card p-6">
+        <h2 className="text-base font-semibold text-fg">Add New Category</h2>
         <form onSubmit={handleSubmit(onAddCategory)} className="mt-4 max-w-lg space-y-4">
           <div>
-            <label htmlFor="new-category-name" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="new-category-name" className="label">
               Category name
             </label>
             <div className="mt-1 flex gap-3">
@@ -139,23 +139,23 @@ export function CategoriesPage() {
                 maxLength={100}
                 placeholder="e.g. Shipping"
                 {...register('name')}
-                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="input"
               />
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="shrink-0 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                className="shrink-0 btn btn-primary"
               >
                 {isSubmitting ? 'Adding...' : 'Add Category'}
               </button>
             </div>
             {errors.name && (
-              <p role="alert" className="mt-1.5 text-xs text-rose-600">
+              <p role="alert" className="mt-1.5 text-xs text-danger">
                 {errors.name.message}
               </p>
             )}
             {formError && (
-              <p role="alert" className="mt-1.5 text-xs text-rose-600">
+              <p role="alert" className="mt-1.5 text-xs text-danger">
                 {formError}
               </p>
             )}
@@ -165,18 +165,18 @@ export function CategoriesPage() {
 
       {/* Categories List */}
       {isLoading && (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-500">
+        <div className="card p-12 text-center text-fg-subtle">
           Loading categories...
         </div>
       )}
 
       {isError && (
-        <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
+        <div role="alert" className="alert alert-danger p-6 text-center">
           <p>Failed to load categories.</p>
           <button
             type="button"
             onClick={() => void refetch()}
-            className="mt-3 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-500"
+            className="mt-3 btn btn-danger btn-sm"
           >
             Retry
           </button>
@@ -184,25 +184,25 @@ export function CategoriesPage() {
       )}
 
       {!isLoading && !isError && categories && (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden card">
           {categories.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No categories found.</div>
+            <div className="p-12 text-center text-fg-subtle">No categories found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead className="bg-slate-50 text-slate-700">
+              <table className="min-w-full divide-y divide-border text-left text-sm">
+                <thead className="bg-surface-muted text-fg-secondary">
                   <tr>
                     <th className="px-6 py-3 font-semibold">Name</th>
                     <th className="px-6 py-3 font-semibold">Status</th>
                     <th className="px-6 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 bg-white text-slate-900">
+                <tbody className="divide-y divide-border bg-surface text-fg">
                   {categories.map((category) => {
                     const isEditing = editingId === category.id
 
                     return (
-                      <tr key={category.id} className="hover:bg-slate-50">
+                      <tr key={category.id} className="hover:bg-surface-muted">
                         <td className="px-6 py-4 font-medium">
                           {isEditing ? (
                             <div className="space-y-1">
@@ -212,26 +212,26 @@ export function CategoriesPage() {
                                   maxLength={100}
                                   value={editingName}
                                   onChange={(e) => setEditingName(e.target.value)}
-                                  className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  className="input w-auto py-1 px-2 text-sm"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => saveEditing(category.id)}
                                   disabled={renameMutation.isPending}
-                                  className="rounded bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+                                  className="btn btn-primary btn-xs"
                                 >
                                   Save
                                 </button>
                                 <button
                                   type="button"
                                   onClick={cancelEditing}
-                                  className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                  className="btn btn-outline btn-xs"
                                 >
                                   Cancel
                                 </button>
                               </div>
                               {editingError && (
-                                <p role="alert" className="text-xs text-rose-600">
+                                <p role="alert" className="text-xs text-danger">
                                   {editingError}
                                 </p>
                               )}
@@ -241,7 +241,7 @@ export function CategoriesPage() {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <Badge variant={category.is_active ? 'emerald' : 'rose'}>
+                          <Badge variant={category.is_active ? 'success' : 'danger'}>
                             {category.is_active ? 'Active' : 'Inactive'}
                           </Badge>
                         </td>
@@ -251,7 +251,7 @@ export function CategoriesPage() {
                               <button
                                 type="button"
                                 onClick={() => startEditing(category)}
-                                className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
+                                className="link font-medium"
                               >
                                 Rename
                               </button>
@@ -267,8 +267,8 @@ export function CategoriesPage() {
                               disabled={toggleActiveMutation.isPending}
                               className={`text-xs font-semibold hover:underline ${
                                 category.is_active
-                                  ? 'text-rose-600 hover:text-rose-500'
-                                  : 'text-emerald-600 hover:text-emerald-500'
+                                  ? 'text-danger hover:text-danger-hover'
+                                  : 'text-success hover:text-success-hover'
                               }`}
                             >
                               {category.is_active ? 'Deactivate' : 'Activate'}
