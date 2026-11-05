@@ -28,10 +28,23 @@ export type TicketCategory = {
   name: string
 }
 
+export type Attachment = {
+  id: number
+  name: string
+  mime_type: string
+  size_bytes: number
+  created_at: string
+}
+
 export type TicketPermissions = {
   can_edit_content: boolean
   can_edit_classification: boolean
   allowed_statuses: TicketStatus[]
+  can_assign?: boolean
+  can_claim?: boolean
+  can_release?: boolean
+  can_reply?: boolean
+  can_add_internal_note?: boolean
 }
 
 export type TicketListItem = {
@@ -59,6 +72,7 @@ export type Ticket = {
   resolved_at: string | null
   closed_at: string | null
   lock_version: number
+  attachments?: Attachment[]
   created_at: string
   updated_at: string
   permissions: TicketPermissions
@@ -82,6 +96,7 @@ export type CreateTicketPayload = {
   category_id: number
   priority?: TicketPriority
   customer_id?: number
+  attachments?: File[]
 }
 
 export type UpdateTicketPayload = {

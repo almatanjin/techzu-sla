@@ -52,6 +52,11 @@ export function createAppRouter() {
                     { path: '/admin/users', element: <UsersListPage /> },
                     { path: '/admin/users/new', element: <UserFormPage /> },
                     { path: '/admin/users/:id/edit', element: <UserFormPage /> },
+                  ],
+                },
+                {
+                  element: <RequireRole roles={['admin', 'agent']} />,
+                  children: [
                     { path: '/admin/sla', element: <SlaSettingsPage /> },
                   ],
                 },

@@ -6,6 +6,7 @@ export type TicketSla = {
   warning_at: string
   due_at: string
   policy_minutes: number
+  escalated_at: string | null
 }
 
 export type SlaPolicy = {

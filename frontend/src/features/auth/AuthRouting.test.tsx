@@ -102,5 +102,17 @@ describe('auth routing and guards', () => {
       screen.getByText(/You do not have permission to view this page/i),
     ).toBeInTheDocument()
   })
+
+  it('shows Not authorized page when a customer accesses /admin/sla', async () => {
+    signIn({ role: 'customer' })
+    window.history.replaceState(null, '', '/admin/sla')
+
+    render(<Root />)
+
+    expect(await screen.findByRole('heading', { name: 'Not authorized' })).toBeInTheDocument()
+    expect(
+      screen.getByText(/You do not have permission to view this page/i),
+    ).toBeInTheDocument()
+  })
 })
 

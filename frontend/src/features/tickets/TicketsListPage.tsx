@@ -1,134 +1,96 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import axios from 'axios'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useApiClient } from '../../shared/api/apiClientContext'
-import { Pagination } from '../../shared/components/Pagination'
 import { useAuth } from '../auth/useAuth'
-import { useActiveCategories } from '../categories/useActiveCategories'
 import { SlaBadge } from '../sla/SlaBadge'
 import { PriorityBadge } from './PriorityBadge'
 import { StatusBadge } from './StatusBadge'
+import { TicketFilterBar } from './TicketFilterBar'
 import { listTickets } from './api'
-import type { PaginatedTicketsResponse, TicketPriority, TicketStatus, TicketView } from './types'
+import { filtersFromParams, paramsFromFilters, type TicketListFilters } from './listFilters'
+import type { PaginatedTicketsResponse, TicketView } from './types'
 
 export function TicketsListPage() {
   const { user } = useAuth()
   const apiClient = useApiClient()
-  const isStaff = user?.role === 'admin' || user?.role === 'agent'
-  const { data: categories = [] } = useActiveCategories()
+  const role = user?.role ?? 'customer'
 
   const [searchParams, setSearchParams] = useSearchParams()
+  const filters = filtersFromParams(searchParams)
+  const currentView: TicketView = filters.view === 'closed' ? 'closed' : 'active'
 
-  const rawView = searchParams.get('view')
-  const currentView: TicketView = rawView === 'closed' ? 'closed' : 'active'
+  const [clearedSearchTerm, setClearedSearchTerm] = useState<string | null>(null)
 
-  const searchFilter = searchParams.get('search') || ''
-  const statusFilter = (searchParams.get('status') as TicketStatus | '') || ''
-  const priorityFilter = (searchParams.get('priority') as TicketPriority | '') || ''
-  const categoryFilter = searchParams.get('category_id') || ''
-  const assignedFilter = searchParams.get('assigned') || ''
-  const slaStatusFilter = searchParams.get('sla_status') || ''
-  const currentPage = Number(searchParams.get('page')) || 1
-
-  const [searchInput, setSearchInput] = useState(searchFilter)
-
-  const { data, isLoading, isError, refetch } = useQuery<PaginatedTicketsResponse>({
-    queryKey: [
-      'tickets',
-      {
-        view: currentView,
-        status: statusFilter,
-        priority: priorityFilter,
-        categoryId: categoryFilter,
-        search: searchFilter,
-        assigned: assignedFilter,
-        slaStatus: slaStatusFilter,
-        page: currentPage,
-      },
-    ],
+  const queryResult = useQuery<PaginatedTicketsResponse>({
+    queryKey: ['tickets', filters],
     queryFn: () =>
       listTickets(apiClient, {
-        view: currentView,
-        status: statusFilter || undefined,
-        priority: priorityFilter || undefined,
-        categoryId: categoryFilter || undefined,
-        search: searchFilter || undefined,
-        assigned: assignedFilter || undefined,
-        sla_status: slaStatusFilter || undefined,
-        page: currentPage,
+        view: filters.view,
+        status: filters.status,
+        priority: filters.priority,
+        categoryId: filters.categoryId,
+        search: filters.search,
+        assigned: filters.assigned,
+        customer_id: filters.customerId,
+        created_from: filters.createdFrom,
+        created_to: filters.createdTo,
+        sla_status: filters.slaStatus,
+        sort: filters.sort,
+        per_page: filters.perPage,
+        page: filters.page,
       }),
+    placeholderData: keepPreviousData,
+    retry: false,
   })
 
-  const updateFilter = (key: string, value: string | number) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      if (value) {
-        next.set(key, String(value))
-      } else {
-        next.delete(key)
-      }
+  const { refetch } = queryResult
+  const [lastSuccessfulData, setLastSuccessfulData] = useState<PaginatedTicketsResponse | null>(null)
 
-      // Sync tabs if status is selected
-      if (key === 'status') {
-        if (value === 'resolved' || value === 'closed') {
-          next.set('view', 'closed')
-        } else if (
-          value === 'open' ||
-          value === 'in_progress' ||
-          value === 'waiting_for_customer'
-        ) {
-          next.set('view', 'active')
-        }
-      }
-
-      next.delete('page')
-      return next
-    })
+  if (queryResult.data && queryResult.data !== lastSuccessfulData) {
+    setLastSuccessfulData(queryResult.data)
   }
 
-  const clearFilters = () => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams()
-      const v = prev.get('view')
-      if (v) next.set('view', v)
-      return next
-    })
-    setSearchInput('')
-  }
+  const data = queryResult.data ?? lastSuccessfulData
+  const isLoading = queryResult.isLoading && !data
 
-  const hasActiveFilters = Boolean(
-    searchFilter || statusFilter || priorityFilter || categoryFilter || assignedFilter || slaStatusFilter
-  )
+  const rawSearchError =
+    queryResult.error && axios.isAxiosError(queryResult.error)
+      ? (queryResult.error.response?.data as { errors?: { search?: string[] } })?.errors?.search?.[0]
+      : undefined
+
+  const searchError =
+    filters.search && filters.search === clearedSearchTerm ? undefined : rawSearchError
+
+  const handleFilterChange = (newFilters: TicketListFilters) => {
+    setSearchParams(paramsFromFilters(newFilters))
+  }
 
   const handleTabChange = (view: TicketView) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      next.set('view', view)
-      const st = next.get('status')
-      if (view === 'active' && (st === 'resolved' || st === 'closed')) {
-        next.delete('status')
-      } else if (
-        view === 'closed' &&
-        (st === 'open' || st === 'in_progress' || st === 'waiting_for_customer')
-      ) {
-        next.delete('status')
-      }
-      next.delete('page')
-      return next
-    })
+    const next: TicketListFilters = { ...filters, view, page: undefined }
+    const st = next.status
+    if (view === 'active' && (st === 'resolved' || st === 'closed')) {
+      next.status = undefined
+    } else if (
+      view === 'closed' &&
+      (st === 'open' || st === 'in_progress' || st === 'waiting_for_customer')
+    ) {
+      next.status = undefined
+    }
+    setSearchParams(paramsFromFilters(next))
   }
 
   const handlePageChange = (newPage: number) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      if (newPage > 1) {
-        next.set('page', String(newPage))
-      } else {
-        next.delete('page')
-      }
-      return next
-    })
+    setSearchParams(
+      paramsFromFilters({
+        ...filters,
+        page: newPage > 1 ? newPage : undefined,
+      }),
+    )
   }
+
+  const isGeneralError = queryResult.isError && !searchError
 
   return (
     <div className="space-y-6">
@@ -139,10 +101,7 @@ export function TicketsListPage() {
             Track and manage customer support requests.
           </p>
         </div>
-        <Link
-          to="/tickets/new"
-          className="btn btn-primary"
-        >
+        <Link to="/tickets/new" className="btn btn-primary">
           New Ticket
         </Link>
       </div>
@@ -170,147 +129,13 @@ export function TicketsListPage() {
       </div>
 
       {/* Filter controls */}
-      <div className="card p-4 space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {/* Search */}
-          <div>
-            <label htmlFor="search-tickets" className="block text-xs font-medium text-fg-secondary">
-              Search
-            </label>
-            <input
-              id="search-tickets"
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  updateFilter('search', searchInput)
-                }
-              }}
-              onBlur={() => {
-                if (searchInput !== searchFilter) {
-                  updateFilter('search', searchInput)
-                }
-              }}
-              placeholder="Subject or ticket #..."
-              className="mt-1 input input-sm"
-            />
-          </div>
-
-          {/* Status */}
-          <div>
-            <label htmlFor="filter-status" className="block text-xs font-medium text-fg-secondary">
-              Status
-            </label>
-            <select
-              id="filter-status"
-              value={statusFilter}
-              onChange={(e) => updateFilter('status', e.target.value)}
-              className="mt-1 input input-sm"
-            >
-              <option value="">All Statuses</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="waiting_for_customer">Waiting for Customer</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-
-          {/* Priority */}
-          <div>
-            <label htmlFor="filter-priority" className="block text-xs font-medium text-fg-secondary">
-              Priority
-            </label>
-            <select
-              id="filter-priority"
-              value={priorityFilter}
-              onChange={(e) => updateFilter('priority', e.target.value)}
-              className="mt-1 input input-sm"
-            >
-              <option value="">All Priorities</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
-          </div>
-
-          {/* Category */}
-          <div>
-            <label htmlFor="filter-category" className="block text-xs font-medium text-fg-secondary">
-              Category
-            </label>
-            <select
-              id="filter-category"
-              value={categoryFilter}
-              onChange={(e) => updateFilter('category_id', e.target.value)}
-              className="mt-1 input input-sm"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Assignment (staff only) */}
-          {isStaff && (
-            <div>
-              <label htmlFor="filter-assigned" className="block text-xs font-medium text-fg-secondary">
-                Assignment
-              </label>
-              <select
-                id="filter-assigned"
-                value={assignedFilter}
-                onChange={(e) => updateFilter('assigned', e.target.value)}
-                className="mt-1 input input-sm"
-              >
-                <option value="">All Tickets</option>
-                <option value="me">Assigned to Me</option>
-                <option value="unassigned">Unassigned</option>
-              </select>
-            </div>
-          )}
-
-          {/* SLA Status (staff only) */}
-          {isStaff && (
-            <div>
-              <label htmlFor="filter-sla-status" className="block text-xs font-medium text-fg-secondary">
-                SLA Status
-              </label>
-              <select
-                id="filter-sla-status"
-                value={slaStatusFilter}
-                onChange={(e) => updateFilter('sla_status', e.target.value)}
-                className="mt-1 input input-sm"
-              >
-                <option value="">All SLA Statuses</option>
-                <option value="within">Within SLA</option>
-                <option value="approaching">Approaching</option>
-                <option value="breached">Breached</option>
-                <option value="met">Met</option>
-                <option value="missed">Missed</option>
-              </select>
-            </div>
-          )}
-        </div>
-
-        {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-border-subtle text-xs">
-            <span className="text-fg-subtle">Filters applied</span>
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="link font-medium"
-            >
-              Reset Filters
-            </button>
-          </div>
-        )}
-      </div>
+      <TicketFilterBar
+        filters={filters}
+        role={role}
+        onChange={handleFilterChange}
+        searchError={searchError}
+        onClearSearchError={() => setClearedSearchTerm(filters.search ?? '')}
+      />
 
       {/* Content states */}
       {isLoading && (
@@ -319,7 +144,7 @@ export function TicketsListPage() {
         </div>
       )}
 
-      {isError && (
+      {isGeneralError && (
         <div role="alert" className="alert alert-danger p-6 text-center">
           <p>Failed to load tickets.</p>
           <button
@@ -332,7 +157,7 @@ export function TicketsListPage() {
         </div>
       )}
 
-      {!isLoading && !isError && data && (
+      {!isLoading && !isGeneralError && data && (
         <div className="overflow-hidden card">
           {data.data.length === 0 ? (
             <div className="p-12 text-center text-fg-subtle">No tickets found.</div>
@@ -356,21 +181,21 @@ export function TicketsListPage() {
                       <th className="px-6 py-3 font-semibold">Created</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border bg-surface text-fg">
+                  <tbody className="divide-y divide-border bg-surface">
                     {data.data.map((ticket) => (
-                      <tr key={ticket.ticket_number} className="hover:bg-surface-muted">
+                      <tr key={ticket.ticket_number} className="hover:bg-surface-muted/50">
                         <td className="px-6 py-4 font-mono font-medium">
                           <Link
                             to={`/tickets/${ticket.ticket_number}`}
-                            className="link"
+                            className="link font-semibold"
                           >
                             {ticket.ticket_number}
                           </Link>
                         </td>
-                        <td className="px-6 py-4 font-medium text-fg max-w-xs truncate">
+                        <td className="px-6 py-4 font-medium text-fg">
                           <Link
                             to={`/tickets/${ticket.ticket_number}`}
-                            className="hover:text-accent hover:underline"
+                            className="hover:text-accent"
                           >
                             {ticket.subject}
                           </Link>
@@ -385,7 +210,10 @@ export function TicketsListPage() {
                           <td className="px-6 py-4">
                             {ticket.sla ? (
                               <div className="space-y-1">
-                                <SlaBadge status={ticket.sla.status} />
+                                <SlaBadge
+                                  status={ticket.sla.status}
+                                  escalated={Boolean(ticket.sla.escalated_at)}
+                                />
                                 <div className="text-xs text-fg-subtle">
                                   {new Date(ticket.sla.due_at).toLocaleString()}
                                 </div>
@@ -446,7 +274,10 @@ export function TicketsListPage() {
                     </div>
                     {ticket.sla && (
                       <div className="flex items-center gap-2 pt-1 text-xs">
-                        <SlaBadge status={ticket.sla.status} />
+                        <SlaBadge
+                          status={ticket.sla.status}
+                          escalated={Boolean(ticket.sla.escalated_at)}
+                        />
                         <span className="text-fg-subtle">
                           Due: {new Date(ticket.sla.due_at).toLocaleString()}
                         </span>
@@ -455,10 +286,65 @@ export function TicketsListPage() {
                   </div>
                 ))}
               </div>
-
-              <Pagination meta={data.meta} onPageChange={handlePageChange} />
             </>
           )}
+
+          {/* Footer with rows per page and pagination */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface px-4 py-3 sm:px-6">
+            <div className="flex items-center gap-2">
+              <label htmlFor="per-page-select" className="text-xs font-medium text-fg-secondary">
+                Rows per page
+              </label>
+              <select
+                id="per-page-select"
+                value={filters.perPage ?? 20}
+                onChange={(e) => {
+                  setSearchParams(
+                    paramsFromFilters({
+                      ...filters,
+                      perPage: Number(e.target.value),
+                      page: undefined,
+                    }),
+                  )
+                }}
+                className="input input-sm py-1"
+              >
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+            {data.meta && data.meta.last_page > 1 && (
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-fg-secondary hidden sm:block">
+                  Showing <span className="font-medium">{data.meta.from ?? 0}</span> to{' '}
+                  <span className="font-medium">{data.meta.to ?? 0}</span> of{' '}
+                  <span className="font-medium">{data.meta.total}</span> results
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(data.meta.current_page - 1)}
+                    disabled={data.meta.current_page <= 1}
+                    className="btn btn-outline btn-sm"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-fg-muted">
+                    Page {data.meta.current_page} of {data.meta.last_page}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(data.meta.current_page + 1)}
+                    disabled={data.meta.current_page >= data.meta.last_page}
+                    className="btn btn-outline btn-sm"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -51,24 +51,34 @@ describe('SlaSettingsPage - Policies & Authorization', () => {
     window.history.replaceState(null, '', '/')
   })
 
-  it('renders "SLA" navigation link for admin and shows "Not authorized" for agent at /admin/sla', async () => {
+  it('renders "SLA" navigation link for admin and agent, and hides it with "Not authorized" for customer', async () => {
     // 1. Agent visits /admin/sla
     signIn({ role: 'agent' })
     window.history.replaceState(null, '', '/admin/sla')
-    const { unmount } = render(<Root />)
+    const agentRender = render(<Root />)
 
-    expect(await screen.findByRole('heading', { name: 'Not authorized' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'SLA' })).not.toBeInTheDocument()
+    expect(await agentRender.findByRole('heading', { name: /SLA/i })).toBeInTheDocument()
+    expect(agentRender.getByRole('link', { name: 'SLA' })).toBeInTheDocument()
 
-    unmount()
+    agentRender.unmount()
 
     // 2. Admin visits /admin/sla
     signIn({ role: 'admin' })
     window.history.replaceState(null, '', '/admin/sla')
+    const adminRender = render(<Root />)
+
+    expect(await adminRender.findByRole('heading', { name: /SLA/i })).toBeInTheDocument()
+    expect(adminRender.getByRole('link', { name: 'SLA' })).toBeInTheDocument()
+
+    adminRender.unmount()
+
+    // 3. Customer visits /admin/sla
+    signIn({ role: 'customer' })
+    window.history.replaceState(null, '', '/admin/sla')
     render(<Root />)
 
-    expect(await screen.findByRole('heading', { name: /SLA/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'SLA' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Not authorized' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'SLA' })).not.toBeInTheDocument()
   })
 
   it('allows editing Critical policy to 1 h 30 min and displays formatted duration', async () => {
@@ -337,5 +347,38 @@ describe('SlaSettingsPage - Business Hours & Holidays', () => {
     await waitFor(() => {
       expect(screen.queryByText('Victory Day')).not.toBeInTheDocument()
     })
+  })
+
+  it('renders read-only SLA policies, business hours, and holidays for agent without edit controls', async () => {
+    server.use(
+      http.get('http://api.test/api/v1/admin/holidays', () => {
+        return HttpResponse.json({
+          data: [{ id: 1, date: '2026-02-21', name: 'Martyrs Day' }],
+        })
+      }),
+    )
+
+    signIn({ role: 'agent' })
+    window.history.replaceState(null, '', '/admin/sla')
+    render(<Root />)
+
+    // Policies read-only
+    expect(await screen.findByText('Critical Priority')).toBeInTheDocument()
+    expect(screen.getByText('2 business hours')).toBeInTheDocument()
+    expect(screen.getAllByText(/Warning at 75%/)).not.toHaveLength(0)
+    expect(screen.queryByLabelText('Critical resolution hours')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Save.*Policy/i })).not.toBeInTheDocument()
+
+    // Business hours read-only
+    expect(screen.getByText('Sunday')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Sunday working day')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Sunday opening time')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save Business Hours' })).not.toBeInTheDocument()
+
+    // Holidays read-only
+    expect(await screen.findByText('Martyrs Day')).toBeInTheDocument()
+    expect(screen.queryByText('Add Holiday')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Holiday date')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Delete/i })).not.toBeInTheDocument()
   })
 })

@@ -10,10 +10,11 @@ import type { SlaPolicy } from './types'
 
 type PolicyRowProps = {
   policy: SlaPolicy
+  readOnly?: boolean
   onUpdated: () => Promise<void>
 }
 
-function PolicyRow({ policy, onUpdated }: PolicyRowProps) {
+function PolicyRow({ policy, readOnly, onUpdated }: PolicyRowProps) {
   const apiClient = useApiClient()
   const priority = policy.priority as TicketPriority
   const label = priorityLabels[priority]
@@ -67,6 +68,24 @@ function PolicyRow({ policy, onUpdated }: PolicyRowProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     mutation.mutate()
+  }
+
+  if (readOnly) {
+    return (
+      <div className="p-4 border border-border rounded-lg bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <PriorityBadge priority={priority} />
+            <span className="text-sm font-semibold text-fg">{label} Priority</span>
+          </div>
+          <div className="text-sm text-fg-secondary font-mono">
+            Target: <span className="font-semibold text-fg">{formatPolicyDuration(policy.resolution_minutes)}</span>
+            {' · '}
+            <span>Warning at {policy.warning_threshold_percent}%</span>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -205,7 +224,11 @@ function PolicyRow({ policy, onUpdated }: PolicyRowProps) {
   )
 }
 
-export function SlaPoliciesSection() {
+type SlaPoliciesSectionProps = {
+  readOnly?: boolean
+}
+
+export function SlaPoliciesSection({ readOnly }: SlaPoliciesSectionProps = {}) {
   const apiClient = useApiClient()
   const queryClient = useQueryClient()
 
@@ -247,13 +270,15 @@ export function SlaPoliciesSection() {
       <div>
         <h2 className="text-lg font-semibold text-fg">SLA Policies</h2>
         <p className="mt-1 text-sm text-fg-muted">
-          Configure resolution time and warning thresholds by ticket priority.
+          {readOnly
+            ? 'Resolution targets and warning thresholds by ticket priority.'
+            : 'Configure resolution time and warning thresholds by ticket priority.'}
         </p>
       </div>
 
       <div className="space-y-4">
         {policies.map((policy) => (
-          <PolicyRow key={policy.id} policy={policy} onUpdated={handleUpdated} />
+          <PolicyRow key={policy.id} policy={policy} readOnly={readOnly} onUpdated={handleUpdated} />
         ))}
       </div>
     </div>

@@ -4,7 +4,11 @@ import { useApiClient } from '../../shared/api/apiClientContext'
 import { createHoliday, deleteHoliday, listHolidays } from './api'
 import type { Holiday } from './types'
 
-export function HolidaysSection() {
+type HolidaysSectionProps = {
+  readOnly?: boolean
+}
+
+export function HolidaysSection({ readOnly }: HolidaysSectionProps = {}) {
   const apiClient = useApiClient()
   const queryClient = useQueryClient()
 
@@ -127,76 +131,78 @@ export function HolidaysSection() {
       )}
 
       {/* Add Holiday Form */}
-      <form
-        onSubmit={handleAddSubmit}
-        className="p-4 border border-border rounded-lg bg-surface space-y-4"
-      >
-        <h3 className="text-sm font-semibold text-fg">Add Holiday</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="holiday-date" className="block text-xs font-medium text-fg-secondary">
-              Holiday date
-            </label>
-            <input
-              id="holiday-date"
-              type="date"
-              aria-label="Holiday date"
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value)
-                setErrors((prev) => {
-                  const next = { ...prev }
-                  delete next.date
-                  return next
-                })
-              }}
-              className="mt-1 input input-sm w-full font-mono"
-            />
-            {errors.date && (
-              <p role="alert" className="mt-1 text-xs text-danger">
-                {errors.date}
-              </p>
-            )}
+      {!readOnly && (
+        <form
+          onSubmit={handleAddSubmit}
+          className="p-4 border border-border rounded-lg bg-surface space-y-4"
+        >
+          <h3 className="text-sm font-semibold text-fg">Add Holiday</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="holiday-date" className="block text-xs font-medium text-fg-secondary">
+                Holiday date
+              </label>
+              <input
+                id="holiday-date"
+                type="date"
+                aria-label="Holiday date"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  setErrors((prev) => {
+                    const next = { ...prev }
+                    delete next.date
+                    return next
+                  })
+                }}
+                className="mt-1 input input-sm w-full font-mono"
+              />
+              {errors.date && (
+                <p role="alert" className="mt-1 text-xs text-danger">
+                  {errors.date}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="holiday-name" className="block text-xs font-medium text-fg-secondary">
+                Holiday name
+              </label>
+              <input
+                id="holiday-name"
+                type="text"
+                aria-label="Holiday name"
+                placeholder="e.g. New Year's Day"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setErrors((prev) => {
+                    const next = { ...prev }
+                    delete next.name
+                    return next
+                  })
+                }}
+                className="mt-1 input input-sm w-full"
+              />
+              {errors.name && (
+                <p role="alert" className="mt-1 text-xs text-danger">
+                  {errors.name}
+                </p>
+              )}
+            </div>
           </div>
 
-          <div>
-            <label htmlFor="holiday-name" className="block text-xs font-medium text-fg-secondary">
-              Holiday name
-            </label>
-            <input
-              id="holiday-name"
-              type="text"
-              aria-label="Holiday name"
-              placeholder="e.g. New Year's Day"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value)
-                setErrors((prev) => {
-                  const next = { ...prev }
-                  delete next.name
-                  return next
-                })
-              }}
-              className="mt-1 input input-sm w-full"
-            />
-            {errors.name && (
-              <p role="alert" className="mt-1 text-xs text-danger">
-                {errors.name}
-              </p>
-            )}
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={addMutation.isPending}
+              className="btn btn-sm btn-primary"
+            >
+              {addMutation.isPending ? 'Adding...' : 'Add Holiday'}
+            </button>
           </div>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <button
-            type="submit"
-            disabled={addMutation.isPending}
-            className="btn btn-sm btn-primary"
-          >
-            {addMutation.isPending ? 'Adding...' : 'Add Holiday'}
-          </button>
-        </div>
-      </form>
+        </form>
+      )}
 
       {/* Holidays List */}
       <div>
@@ -224,9 +230,11 @@ export function HolidaysSection() {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-fg-subtle">
                     Name
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-                    Actions
-                  </th>
+                  {!readOnly && (
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -234,17 +242,19 @@ export function HolidaysSection() {
                   <tr key={holiday.id} className="hover:bg-surface-hover">
                     <td className="px-4 py-3 font-mono text-fg">{holiday.date}</td>
                     <td className="px-4 py-3 font-medium text-fg">{holiday.name}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        aria-label={`Delete ${holiday.name}`}
-                        disabled={deleteMutation.isPending}
-                        onClick={() => deleteMutation.mutate(holiday.id)}
-                        className="btn btn-xs btn-outline text-danger hover:bg-danger hover:text-white"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    {!readOnly && (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          aria-label={`Delete ${holiday.name}`}
+                          disabled={deleteMutation.isPending}
+                          onClick={() => deleteMutation.mutate(holiday.id)}
+                          className="btn btn-xs btn-outline text-danger hover:bg-danger hover:text-white"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

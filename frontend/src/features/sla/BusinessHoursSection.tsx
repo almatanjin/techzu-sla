@@ -14,7 +14,11 @@ const DAY_NAMES = [
   'Saturday',
 ]
 
-export function BusinessHoursSection() {
+type BusinessHoursSectionProps = {
+  readOnly?: boolean
+}
+
+export function BusinessHoursSection({ readOnly }: BusinessHoursSectionProps = {}) {
   const apiClient = useApiClient()
   const queryClient = useQueryClient()
 
@@ -164,97 +168,113 @@ export function BusinessHoursSection() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {readOnly ? (
         <div className="divide-y divide-border-subtle border border-border rounded-lg overflow-hidden bg-surface">
-          {days.map((day, index) => {
+          {days.map((day) => {
             const dayName = DAY_NAMES[day.day_of_week]
-            const opensError = errors[`days.${index}.opens_at`]
-            const closesError = errors[`days.${index}.closes_at`]
-
             return (
-              <div key={day.day_of_week} className="p-3.5 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 w-36">
-                    <input
-                      id={`day-${day.day_of_week}-working`}
-                      type="checkbox"
-                      aria-label={`${dayName} working day`}
-                      checked={day.is_working_day}
-                      onChange={(e) => handleWorkingChange(index, e.target.checked)}
-                      className="checkbox checkbox-sm"
-                    />
-                    <label
-                      htmlFor={`day-${day.day_of_week}-working`}
-                      className="text-sm font-medium text-fg cursor-pointer select-none"
-                    >
-                      {dayName}
-                    </label>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[240px]">
-                    <div className="flex-1">
-                      <label
-                        htmlFor={`day-${day.day_of_week}-opens`}
-                        className="sr-only"
-                      >
-                        {dayName} opening time
-                      </label>
-                      <input
-                        id={`day-${day.day_of_week}-opens`}
-                        type="time"
-                        aria-label={`${dayName} opening time`}
-                        disabled={!day.is_working_day}
-                        value={day.opens_at ?? ''}
-                        onChange={(e) => handleTimeChange(index, 'opens_at', e.target.value)}
-                        className="input input-sm w-full"
-                      />
-                    </div>
-                    <span className="text-xs text-fg-subtle">to</span>
-                    <div className="flex-1">
-                      <label
-                        htmlFor={`day-${day.day_of_week}-closes`}
-                        className="sr-only"
-                      >
-                        {dayName} closing time
-                      </label>
-                      <input
-                        id={`day-${day.day_of_week}-closes`}
-                        type="time"
-                        aria-label={`${dayName} closing time`}
-                        disabled={!day.is_working_day}
-                        value={day.closes_at ?? ''}
-                        onChange={(e) => handleTimeChange(index, 'closes_at', e.target.value)}
-                        className="input input-sm w-full"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {opensError && (
-                  <p role="alert" className="text-xs text-danger pl-8">
-                    {opensError}
-                  </p>
-                )}
-                {closesError && (
-                  <p role="alert" className="text-xs text-danger pl-8">
-                    {closesError}
-                  </p>
-                )}
+              <div key={day.day_of_week} className="p-3.5 flex items-center justify-between gap-4 text-sm">
+                <span className="font-medium text-fg w-36">{dayName}</span>
+                <span className={day.is_working_day ? 'text-fg font-mono' : 'text-fg-subtle italic'}>
+                  {day.is_working_day ? `${day.opens_at} to ${day.closes_at}` : 'Closed'}
+                </span>
               </div>
             )
           })}
         </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="divide-y divide-border-subtle border border-border rounded-lg overflow-hidden bg-surface">
+            {days.map((day, index) => {
+              const dayName = DAY_NAMES[day.day_of_week]
+              const opensError = errors[`days.${index}.opens_at`]
+              const closesError = errors[`days.${index}.closes_at`]
 
-        <div className="flex justify-end pt-2">
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="btn btn-sm btn-primary"
-          >
-            {mutation.isPending ? 'Saving...' : 'Save Business Hours'}
-          </button>
-        </div>
-      </form>
+              return (
+                <div key={day.day_of_week} className="p-3.5 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 w-36">
+                      <input
+                        id={`day-${day.day_of_week}-working`}
+                        type="checkbox"
+                        aria-label={`${dayName} working day`}
+                        checked={day.is_working_day}
+                        onChange={(e) => handleWorkingChange(index, e.target.checked)}
+                        className="checkbox checkbox-sm"
+                      />
+                      <label
+                        htmlFor={`day-${day.day_of_week}-working`}
+                        className="text-sm font-medium text-fg cursor-pointer select-none"
+                      >
+                        {dayName}
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[240px]">
+                      <div className="flex-1">
+                        <label
+                          htmlFor={`day-${day.day_of_week}-opens`}
+                          className="sr-only"
+                        >
+                          {dayName} opening time
+                        </label>
+                        <input
+                          id={`day-${day.day_of_week}-opens`}
+                          type="time"
+                          aria-label={`${dayName} opening time`}
+                          disabled={!day.is_working_day}
+                          value={day.opens_at ?? ''}
+                          onChange={(e) => handleTimeChange(index, 'opens_at', e.target.value)}
+                          className="input input-sm w-full"
+                        />
+                      </div>
+                      <span className="text-xs text-fg-subtle">to</span>
+                      <div className="flex-1">
+                        <label
+                          htmlFor={`day-${day.day_of_week}-closes`}
+                          className="sr-only"
+                        >
+                          {dayName} closing time
+                        </label>
+                        <input
+                          id={`day-${day.day_of_week}-closes`}
+                          type="time"
+                          aria-label={`${dayName} closing time`}
+                          disabled={!day.is_working_day}
+                          value={day.closes_at ?? ''}
+                          onChange={(e) => handleTimeChange(index, 'closes_at', e.target.value)}
+                          className="input input-sm w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {opensError && (
+                    <p role="alert" className="text-xs text-danger pl-8">
+                      {opensError}
+                    </p>
+                  )}
+                  {closesError && (
+                    <p role="alert" className="text-xs text-danger pl-8">
+                      {closesError}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="btn btn-sm btn-primary"
+            >
+              {mutation.isPending ? 'Saving...' : 'Save Business Hours'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   )
 }

@@ -135,8 +135,8 @@ describe('LoginPage', () => {
       expect(
         screen.getByText('Your session has ended. Please sign in again.'),
       ).toBeInTheDocument()
+      expect(window.location.pathname).toBe('/login')
     })
-    expect(window.location.pathname).toBe('/login')
   })
 })
 

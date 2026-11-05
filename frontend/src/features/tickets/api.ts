@@ -34,7 +34,12 @@ export type ListTicketsOptions = {
   categoryId?: number | string
   search?: string
   assigned?: string
+  customer_id?: number | string
+  created_from?: string
+  created_to?: string
   sla_status?: string
+  sort?: string
+  per_page?: number
   page?: number
 }
 
@@ -61,8 +66,23 @@ export async function listTickets(
   if (options.assigned) {
     params.set('assigned', options.assigned)
   }
+  if (options.customer_id) {
+    params.set('customer_id', String(options.customer_id))
+  }
+  if (options.created_from) {
+    params.set('created_from', options.created_from)
+  }
+  if (options.created_to) {
+    params.set('created_to', options.created_to)
+  }
   if (options.sla_status) {
     params.set('sla_status', options.sla_status)
+  }
+  if (options.sort) {
+    params.set('sort', options.sort)
+  }
+  if (options.per_page) {
+    params.set('per_page', String(options.per_page))
   }
   if (options.page && options.page > 1) {
     params.set('page', String(options.page))
@@ -70,6 +90,14 @@ export async function listTickets(
 
   const response = await client.get<PaginatedTicketsResponse>('tickets', { params })
   return response.data
+}
+
+export async function getCustomer(
+  client: AxiosInstance,
+  id: number | string,
+): Promise<TicketCustomer> {
+  const response = await client.get<TicketCustomer | { data: TicketCustomer }>(`customers/${id}`)
+  return unwrapItem(response.data)
 }
 
 export async function getTicket(client: AxiosInstance, ticketNumber: string): Promise<Ticket> {
@@ -81,7 +109,30 @@ export async function createTicket(
   client: AxiosInstance,
   payload: CreateTicketPayload,
 ): Promise<Ticket> {
-  const response = await client.post<Ticket | { data: Ticket }>('tickets', payload)
+  if (payload.attachments && payload.attachments.length > 0) {
+    const formData = new FormData()
+    formData.append('subject', payload.subject)
+    formData.append('description', payload.description)
+    formData.append('category_id', String(payload.category_id))
+    if (payload.priority) {
+      formData.append('priority', payload.priority)
+    }
+    if (payload.customer_id !== undefined) {
+      formData.append('customer_id', String(payload.customer_id))
+    }
+    payload.attachments.forEach((file) => {
+      formData.append('attachments[]', file, file.name)
+    })
+    const response = await client.post<Ticket | { data: Ticket }>('tickets', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return unwrapItem(response.data)
+  }
+
+  const { attachments: _unused, ...jsonPayload } = payload
+  const response = await client.post<Ticket | { data: Ticket }>('tickets', jsonPayload)
   return unwrapItem(response.data)
 }
 

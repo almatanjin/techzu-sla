@@ -3,6 +3,7 @@ import type { SlaStatus } from './types'
 
 export type SlaBadgeProps = {
   status: SlaStatus
+  escalated?: boolean
   className?: string
 }
 
@@ -14,13 +15,14 @@ const statusConfig: Record<SlaStatus, { label: string; variant: BadgeVariant }> 
   missed: { label: 'Missed', variant: 'attention' },
 }
 
-export function SlaBadge({ status, className = '' }: SlaBadgeProps) {
+export function SlaBadge({ status, escalated = false, className = '' }: SlaBadgeProps) {
   const config = statusConfig[status] ?? { label: status, variant: 'neutral' as BadgeVariant }
 
   return (
-    <Badge variant={config.variant} className={className}>
-      {config.label}
-    </Badge>
+    <span className={`inline-flex flex-wrap items-center gap-1.5 ${className}`.trim()}>
+      <Badge variant={config.variant}>{config.label}</Badge>
+      {escalated && <Badge variant="danger">Escalated</Badge>}
+    </span>
   )
 }
 

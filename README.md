@@ -88,7 +88,7 @@ All API endpoints reside under the `/api/v1` prefix.
 | `POST` | `/api/v1/auth/forgot-password` | Public | Request password reset email via Mailpit |
 | `POST` | `/api/v1/auth/reset-password` | Public | Reset password using email token |
 
-### User Administration (`/api/v1/admin/users`)
+### User Administration (`/api/v1/admin/users`, `/api/v1/admin/agents`)
 
 | Method | Endpoint | Access | Description |
 | ------ | -------- | ------ | ----------- |
@@ -96,6 +96,7 @@ All API endpoints reside under the `/api/v1` prefix.
 | `POST` | `/api/v1/admin/users` | Admin only | Create user with specified role and password |
 | `GET` | `/api/v1/admin/users/{id}` | Admin only | Retrieve user details |
 | `PATCH` | `/api/v1/admin/users/{id}` | Admin only | Update user details, role, status or password |
+| `GET` | `/api/v1/admin/agents` | Admin only | Overview of agents, workload and category assignments |
 
 ### Categories (`/api/v1/categories`, `/api/v1/admin/categories`)
 
@@ -110,6 +111,7 @@ All API endpoints reside under the `/api/v1` prefix.
 | Method | Endpoint | Access | Description |
 | ------ | -------- | ------ | ----------- |
 | `GET` | `/api/v1/customers` | Staff only | Search active customers by name or email fragment |
+| `GET` | `/api/v1/customers/{id}` | Staff only | Retrieve customer details (id, name, email) by user ID |
 
 ### Tickets (`/api/v1/tickets`)
 
@@ -119,8 +121,80 @@ All API endpoints reside under the `/api/v1` prefix.
 | `POST` | `/api/v1/tickets` | Authenticated | Open a support ticket |
 | `GET` | `/api/v1/tickets/{ticket_number}` | Authenticated | Retrieve ticket details and permissions (includes staff `sla` block) |
 | `PATCH` | `/api/v1/tickets/{ticket_number}` | Authenticated | Update ticket content or classification with `lock_version` |
+| `PUT` | `/api/v1/tickets/{ticket_number}/assignment` | Admin only | Assign or unassign ticket with `lock_version` |
+| `POST` | `/api/v1/tickets/{ticket_number}/claim` | Staff only | Claim an unassigned ticket atomically |
+| `POST` | `/api/v1/tickets/{ticket_number}/release` | Assignee only | Release assigned ticket back to unassigned pool |
 | `POST` | `/api/v1/tickets/{ticket_number}/status` | Authenticated | Transition ticket status with `lock_version` |
 | `GET` | `/api/v1/tickets/{ticket_number}/activities` | Authenticated | Retrieve ticket activity history timeline (oldest first) |
+| `GET` | `/api/v1/tickets/{ticket_number}/messages` | Authenticated | List conversation messages (newest first, 30 per page with cursor pagination) |
+| `POST` | `/api/v1/tickets/{ticket_number}/messages` | Authenticated | Post a public reply or internal note (`multipart/form-data`) |
+| `GET` | `/api/v1/attachments/{id}/download` | Authenticated | Download an attachment as a file stream |
+
+#### Ticket search rules
+
+The search parameter accepts exact ticket numbers and boolean keyword queries:
+- **Number shape**: Inputs matching `TKT-YYYY-NNNNNN` (case-insensitive, surrounding whitespace trimmed) locate the exact ticket number and bypass the active/closed view tab.
+- **3-character words**: Keyword searches require tokens of at least 3 characters.
+Submitting only shorter tokens returns a 422 validation response with "Search for words of at least 3 characters." on `search`.
+- **Prefix matching**: Tokens match as prefixes, allowing `print` to match `printer`.
+- **All words required**: Multi-word queries mandate the presence of all extracted tokens across subject and description.
+- **No matches inside words**: Search matches prefixes and full words only, so `rint` does not match `printer`.
+
+#### Database indexes and query execution
+
+Database indexes optimize listing, searching, filtering, and SLA tracking:
+
+| Index Name | Columns | Serves |
+| ---------- | ------- | ------ |
+| `tickets_fulltext` | FULLTEXT (`subject`, `description`) | Boolean keyword search |
+| `tickets_ticket_number_unique` | (`ticket_number`) | Exact ticket number search |
+| `tickets_created_at_index` | (`created_at`) | Default ticket sorting, date range filter |
+| `tickets_customer_id_status_created_at_index` | (`customer_id`, `status`, `created_at`) | Customer portal ticket lists, customer filter |
+| `tickets_category_id_status_index` | (`category_id`, `status`) | Category filter, automatic assignment matching |
+| `tickets_status_priority_index` | (`status`, `priority`) | Priority filter, status counts |
+| `tickets_status_sla_due_at_index` | (`status`, `sla_due_at`) | SLA check background command, SLA due sorting |
+| `tickets_status_sla_warning_at_index` | (`status`, `sla_warning_at`) | SLA warning notifications |
+| `tickets_assigned_agent_id_status_index` | (`assigned_agent_id`, `status`) | Assignment filter (`assigned=me`, `assigned={id}`) |
+
+##### Query plan: Default Active list
+
+```sql
+EXPLAIN FORMAT=TRADITIONAL
+SELECT * FROM `tickets`
+WHERE `status` IN ('open', 'in_progress', 'waiting_for_customer')
+ORDER BY `created_at` DESC, `id` DESC
+LIMIT 20;
+```
+
+Execution plan on development stack:
+- Table: `tickets`
+- Type: `ALL` (on small development datasets with under 100 rows, MySQL optimizer prefers an in-memory scan over index lookups; on tables with realistic volume, it uses `tickets_created_at_index`)
+- Possible keys: `tickets_status_sla_due_at_index, tickets_status_sla_warning_at_index, tickets_status_priority_index`
+- Extra: `Using where; Using filesort`
+
+##### Query plan: Keyword search
+
+```sql
+EXPLAIN FORMAT=TRADITIONAL
+SELECT * FROM `tickets`
+WHERE MATCH (`subject`, `description`) AGAINST ('+login*' IN BOOLEAN MODE)
+  AND `status` IN ('open', 'in_progress', 'waiting_for_customer')
+ORDER BY `created_at` DESC, `id` DESC
+LIMIT 20;
+```
+
+Execution plan on development stack:
+- Table: `tickets`
+- Type: `fulltext`
+- Key: `tickets_fulltext`
+- Possible keys: `tickets_status_sla_due_at_index, tickets_status_sla_warning_at_index, tickets_status_priority_index, tickets_fulltext`
+- Rows: `1`
+- Extra: `Using where; Ft_hints: no_ranking; Using filesort`
+
+##### Deep pagination note
+
+Offset-based pagination (`OFFSET N LIMIT M`) scans and discards `N` rows before returning the requested page.
+For deep pagination (such as page 100 and beyond), cursor pagination on `(created_at, id)` is the recommended path to avoid linear scan costs.
 
 ### SLA and Business Hours Administration (`/api/v1/admin`)
 
@@ -183,6 +257,97 @@ Responses for staff include an `sla` object containing `status`, `started_at`, `
 Responses to Customers completely omit the `sla` block.
 The `sla_status` query filter (`within`, `approaching`, `breached`, `met`, `missed`) on `GET /api/v1/tickets` is accepted for staff and silently ignored for customers.
 
+## Ticket Assignment
+
+Tickets support automatic assignment on creation, manual reassignment by administrators, and self-service claiming by support agents.
+
+### Selection rule
+
+Automatic assignment uses a category-workload strategy:
+- Category specialty has highest priority.
+Only agents assigned to the ticket's category are evaluated first.
+- Among matching candidates, the agent with the lowest active ticket workload is selected.
+Active workload counts open, in-progress, and waiting-for-customer tickets.
+- Agents who have reached their `max_open_tickets` threshold or are marked unavailable are skipped.
+- When no available agent handles the category, assignment falls back to any available agent with the lowest active workload below their cap.
+- Tied candidates are broken deterministically: the candidate with the oldest `last_assigned_at` timestamp is picked, favoring candidates who have never been assigned, with lowest ID as the final tie-breaker.
+- This strategy balances incoming tickets across the team while ensuring domain specialists receive relevant issues.
+
+### Atomic concurrent claims
+
+Support agents can claim unassigned tickets directly from the detail view:
+- Claim operations execute an atomic conditional SQL query (`WHERE id = ? AND assigned_agent_id IS NULL`).
+- When two agents attempt to claim the same ticket concurrently, MySQL row-level locking guarantees that exactly one transaction succeeds.
+- The colliding request receives an HTTP 409 Conflict with the winner's name (`"This ticket was already taken by {name}."`) and the latest ticket data.
+
+### Assignment endpoints
+
+- `PUT /api/v1/tickets/{ticket_number}/assignment`: Administrators assign or unassign a ticket.
+The payload requires `agent_id` (agent ID or `null`) and the ticket's `lock_version` for optimistic concurrency control.
+- `POST /api/v1/tickets/{ticket_number}/claim`: Available support agents or administrators claim an unassigned ticket.
+- `POST /api/v1/tickets/{ticket_number}/release`: The current assignee releases their in-progress ticket back to the unassigned pool.
+- `GET /api/v1/admin/agents`: Administrators view all agents, their availability, maximum ticket caps, handled categories, and current active ticket counts.
+
+### Retry command and schedule
+
+Tickets created when no eligible agent is available remain unassigned:
+- The Artisan command `tickets:assign-unassigned` scans for unassigned active tickets that have never been assigned (`first_assigned_at IS NULL`).
+- The command runs on a scheduled task every 5 minutes without overlapping (`->everyFiveMinutes()->withoutOverlapping()`).
+- Tickets intentionally released by an agent preserve their `first_assigned_at` timestamp and are skipped by the retry command, remaining available for manual claims.
+
+### Concurrency test suite
+
+The claim race suite tests concurrent execution against MySQL row-level locking:
+
+```bash
+docker compose exec app php artisan test --testsuite=Concurrency
+```
+
+## Conversation and attachments
+
+Customers and support staff talk through tickets with public replies.
+Staff members can also record internal notes that customers never see.
+Both tickets and messages accept file attachments.
+
+### Permissions and visibility
+
+- **Writing replies**: Customers can reply on their own open or resolved tickets.
+Support agents and administrators can reply on any ticket they can view, provided the ticket is not closed.
+Closed tickets accept no new messages from any role.
+- **Internal notes**: Support agents and administrators can post internal notes on any non-closed ticket.
+Customers receive an HTTP 403 Forbidden if they attempt to post an internal note.
+- **Reading messages**: The conversation thread returns messages ordered newest first, paginated at 30 messages per page.
+The database query scope `visibleTo` automatically excludes internal notes when evaluated for customers.
+- **Activity timeline**: Activity logging records `replied` and `internal_note_added` events.
+The activity endpoint automatically filters out internal note entries for customers.
+
+### Allowed file types and content validation
+
+The system accepts attachments with the following extensions: `pdf`, `png`, `jpg`, `jpeg`, `gif`, `webp`, `txt`, `csv`, `log`, `docx`, `xlsx`, `zip`.
+The system validates file content using PHP's `finfo` byte inspection.
+The detected MIME type must strictly match the declared file extension.
+Renaming an executable or script to an image extension is rejected with HTTP 422 Unprocessable Content.
+Each file must not exceed 10 MB in size.
+Each upload allows up to 5 files per request.
+When any single attachment fails validation, the entire request is rejected and nothing is stored.
+
+### Private storage and downloads
+
+Uploaded files are stored on a private disk outside the public web root.
+Each stored file receives a generated UUID filename, preventing path traversal attacks and collisions.
+The database records the cleaned original filename, MIME type, byte size, and SHA-256 hash.
+Downloads are served through `GET /api/v1/attachments/{id}/download`.
+The endpoint verifies the caller's authorization through `AttachmentPolicy`.
+Responses deliver the raw file stream with `Content-Disposition: attachment; filename="{original_name}"`.
+Security headers include `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-cache, no-store, must-revalidate`.
+
+### Docker upload limits
+
+Docker configurations accommodate multi-file uploads:
+- `docker/php/php.ini`: `upload_max_filesize = 11M`, `post_max_size = 60M`, `max_file_uploads = 10`.
+- `docker/nginx/default.conf`: `client_max_body_size 60M`.
+Requests exceeding `post_max_size` answer HTTP 413 Payload Too Large with a JSON error message.
+
 ## Ticket Status Workflow
 
 Ticket status transitions follow a state machine.
@@ -212,6 +377,58 @@ Every ticket receives a unique sequential ticket number.
 The format is `{PREFIX}-{YEAR}-{SEQUENCE}`, for example `TKT-2026-000001`.
 The sequence restarts at 1 each year in the configured timezone.
 Numbers grow naturally past 6 digits without truncation.
+
+## Notifications and escalation
+
+TechZu SLA delivers transactional email notifications and automatic breach escalations.
+
+### Event notifications
+
+Notifications are dispatched as domain events after transaction commit (`ShouldDispatchAfterCommit`), ensuring an event is only dispatched once database changes persist.
+Each notification implements `ShouldQueue` and is sent asynchronously via the `queue` service.
+Local emails are captured by Mailpit and viewable at http://localhost:8025.
+
+| Event | Recipients | Subject format |
+| ----- | ---------- | -------------- |
+| Ticket created | Customer | `[{ticket_number}] We received your request` |
+| Ticket needs an agent | All active Admins | `[{ticket_number}] New ticket needs an agent` |
+| Ticket assigned | Assigned agent | `[{ticket_number}] Ticket assigned to you` |
+| Customer replied | Assigned agent (or all active Admins if unassigned) | `[{ticket_number}] Customer replied` |
+| Staff replied | Customer | `[{ticket_number}] New reply from support` |
+| Internal note added | Assigned agent | `[{ticket_number}] New internal note` |
+| Ticket resolved | Customer | `[{ticket_number}] Your ticket was resolved` |
+| SLA deadline approaching | Assigned agent | `[{ticket_number}] SLA deadline approaching` |
+| SLA escalated | Former assigned agent and all active Admins | `[{ticket_number}] Escalated: SLA deadline passed` |
+
+Recipient resolution rules:
+- **Self-action suppression:** Users never receive notifications for actions they perform themselves (the customer ticket creation confirmation is the sole exception).
+- **Deactivated users:** Deactivated users are excluded from all notification dispatches.
+- **Deduplication:** Multiple recipient criteria targeting the same user result in a single email.
+
+### Scheduled SLA check and escalation
+
+The `tickets:check-sla` command runs every minute via the task scheduler (`scheduler` container).
+You can also run it on demand:
+
+```bash
+docker compose exec app php artisan tickets:check-sla
+```
+
+Key operational characteristics:
+- **Idempotency through conditional updates:** Warnings atomically update `sla_warning_notified_at` where null.
+Breaches atomically update `sla_breached_at` and `escalated_at` where `sla_breached_at` is null.
+Running the command repeatedly within the same minute causes no duplicate notifications or duplicate activities.
+- **Unassign on breach:** When an active ticket breaches its SLA deadline, the system automatically unassigns the ticket, sets `escalated_at`, logs `unassigned` and `escalated` activities, and notifies the former assignee and all active Admins.
+Unassigning the ticket returns it to the pool so other agents or admins can urgently triage and pick it up.
+- **Timezone presentation:** Deadlines in email notifications are formatted in the operational business timezone (`Asia/Dhaka`, configured via `TICKETS_TIMEZONE`).
+- **Overlapping lock recovery:** The scheduler prevents overlapping runs via a cache lock.
+If a scheduler process dies abruptly and the lock remains stuck, clear the lock with:
+
+```bash
+docker compose exec app php artisan schedule:clear-cache
+```
+
+- **Notification opt-out for future imports:** All ticket notification logic routes through `App\Listeners\SendTicketNotifications`, providing a single seam to disable notifications during batch data migrations or imports.
 
 ## Environment variables
 
@@ -243,6 +460,12 @@ Backend tests (Pest, against the `mysql-test` database, so development data is n
 
 ```bash
 docker compose exec app php artisan test
+```
+
+Run only the concurrency race suite:
+
+```bash
+docker compose exec app php artisan test --testsuite=Concurrency
 ```
 
 Frontend tests (Vitest + React Testing Library, network mocked with MSW):

@@ -4,13 +4,15 @@ import type { UserRole } from '../types'
 import { useAuth } from '../useAuth'
 
 type Props = {
-  role: UserRole
+  role?: UserRole
+  roles?: UserRole[]
 }
 
-export function RequireRole({ role }: Props) {
+export function RequireRole({ role, roles }: Props) {
   const { user } = useAuth()
 
-  if (user?.role !== role) {
+  const allowedRoles = roles ?? (role ? [role] : [])
+  if (!user || !allowedRoles.includes(user.role)) {
     return <NotAuthorizedPage />
   }
 

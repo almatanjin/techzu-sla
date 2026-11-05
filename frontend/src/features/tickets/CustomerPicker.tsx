@@ -1,16 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useApiClient } from '../../shared/api/apiClientContext'
-import { searchCustomers } from './api'
+import { getCustomer, searchCustomers } from './api'
 import type { TicketCustomer } from './types'
 
 type Props = {
   value: number | null
   onChange: (customerId: number | null) => void
   error?: string
+  compact?: boolean
 }
 
-export function CustomerPicker({ value, onChange, error }: Props) {
+export function CustomerPicker({ value, onChange, error, compact }: Props) {
   const apiClient = useApiClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -23,6 +24,19 @@ export function CustomerPicker({ value, onChange, error }: Props) {
     }, 300)
     return () => clearTimeout(handler)
   }, [searchTerm])
+
+  const { data: initialCustomer } = useQuery<TicketCustomer>({
+    queryKey: ['customer', value],
+    queryFn: () => getCustomer(apiClient, value!),
+    enabled: Boolean(value) && (!selectedCustomer || selectedCustomer.id !== value),
+  })
+
+  const currentCustomer =
+    value && selectedCustomer?.id === value
+      ? selectedCustomer
+      : value && initialCustomer?.id === value
+        ? initialCustomer
+        : null
 
   const { data: results = [], isLoading } = useQuery<TicketCustomer[]>({
     queryKey: ['customers', { search: debouncedSearch }],
@@ -44,23 +58,32 @@ export function CustomerPicker({ value, onChange, error }: Props) {
   }
 
   return (
-    <div className="space-y-1">
-      <label htmlFor="customer-search" className="label">
+    <div className={compact ? '' : 'space-y-1'}>
+      <label
+        htmlFor="customer-search"
+        className={compact ? 'block text-xs font-medium text-fg-secondary' : 'label'}
+      >
         Customer
       </label>
 
-      {selectedCustomer && value ? (
-        <div className="flex items-center justify-between rounded-md border border-border-strong bg-canvas px-3 py-2 text-sm">
-          <div>
-            <span className="font-medium text-fg">{selectedCustomer.name}</span>
-            <span className="ml-2 text-fg-subtle">({selectedCustomer.email})</span>
+      {currentCustomer && value ? (
+        <div
+          className={
+            compact
+              ? 'mt-1 flex items-center justify-between rounded-md border border-border bg-canvas px-2.5 py-1 text-xs'
+              : 'flex items-center justify-between rounded-md border border-border-strong bg-canvas px-3 py-2 text-sm'
+          }
+        >
+          <div className="truncate">
+            <span className="font-medium text-fg">{currentCustomer.name}</span>
+            <span className="ml-1 text-fg-subtle">({currentCustomer.email})</span>
           </div>
           <button
             type="button"
             onClick={handleClear}
-            className="text-xs font-semibold link"
+            className="text-xs font-semibold link ml-2 shrink-0"
           >
-            Change
+            Clear
           </button>
         </div>
       ) : (
@@ -68,14 +91,14 @@ export function CustomerPicker({ value, onChange, error }: Props) {
           <input
             id="customer-search"
             type="text"
-            placeholder="Search active customer by name or email..."
+            placeholder={compact ? 'Search customer...' : 'Search active customer by name or email...'}
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
               setIsOpen(true)
             }}
             onFocus={() => setIsOpen(true)}
-            className="input"
+            className={compact ? 'mt-1 input input-sm' : 'input'}
           />
 
           {isOpen && debouncedSearch.length >= 1 && (
@@ -103,11 +126,7 @@ export function CustomerPicker({ value, onChange, error }: Props) {
         </div>
       )}
 
-      {error && (
-        <p role="alert" className="mt-1.5 text-xs text-danger">
-          {error}
-        </p>
-      )}
+      {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   )
 }

@@ -75,6 +75,105 @@ describe('describeActivity', () => {
       created_at: '2026-11-01T12:05:00Z',
     }
     expect(describeActivity(descriptionChanged)).toBe('Description updated')
+
+    const claimed: TicketActivity = {
+      id: 7,
+      ticket_id: 1,
+      actor: { id: 2, name: 'Agent' },
+      type: 'claimed',
+      old_values: null,
+      new_values: { agent: { id: 2, name: 'Agent' } },
+      created_at: '2026-11-01T12:10:00Z',
+    }
+    expect(describeActivity(claimed)).toBe('Claimed the ticket')
+
+    const autoAssigned: TicketActivity = {
+      id: 8,
+      ticket_id: 1,
+      actor: null,
+      type: 'assigned',
+      old_values: null,
+      new_values: { agent: { id: 2, name: 'Rafi' } },
+      created_at: '2026-11-01T12:15:00Z',
+    }
+    expect(describeActivity(autoAssigned)).toBe('Assigned automatically to Rafi')
+
+    const assignedByAdmin: TicketActivity = {
+      id: 9,
+      ticket_id: 1,
+      actor: { id: 99, name: 'Admin' },
+      type: 'assigned',
+      old_values: null,
+      new_values: { agent: { id: 2, name: 'Rafi' } },
+      created_at: '2026-11-01T12:20:00Z',
+    }
+    expect(describeActivity(assignedByAdmin)).toBe('Assigned to Rafi')
+
+    const reassigned: TicketActivity = {
+      id: 10,
+      ticket_id: 1,
+      actor: { id: 99, name: 'Admin' },
+      type: 'assigned',
+      old_values: { agent: { id: 2, name: 'Rafi' } },
+      new_values: { agent: { id: 3, name: 'Mina' } },
+      created_at: '2026-11-01T12:25:00Z',
+    }
+    expect(describeActivity(reassigned)).toBe('Reassigned from Rafi to Mina')
+
+    const released: TicketActivity = {
+      id: 11,
+      ticket_id: 1,
+      actor: { id: 2, name: 'Rafi' },
+      type: 'unassigned',
+      old_values: { agent: { id: 2, name: 'Rafi' } },
+      new_values: null,
+      created_at: '2026-11-01T12:30:00Z',
+    }
+    expect(describeActivity(released)).toBe('Released the ticket')
+
+    const unassignedByAdmin: TicketActivity = {
+      id: 12,
+      ticket_id: 1,
+      actor: { id: 99, name: 'Admin' },
+      type: 'unassigned',
+      old_values: { agent: { id: 2, name: 'Rafi' } },
+      new_values: null,
+      created_at: '2026-11-01T12:35:00Z',
+    }
+    expect(describeActivity(unassignedByAdmin)).toBe('Unassigned from Rafi')
+
+    const unassignedAuto: TicketActivity = {
+      id: 13,
+      ticket_id: 1,
+      actor: null,
+      type: 'unassigned',
+      old_values: { agent: { id: 2, name: 'Rafi' } },
+      new_values: null,
+      created_at: '2026-11-01T12:40:00Z',
+    }
+    expect(describeActivity(unassignedAuto)).toBe('Unassigned automatically from Rafi')
+
+    const slaWarning: TicketActivity = {
+      id: 14,
+      ticket_id: 1,
+      actor: null,
+      type: 'sla_warning',
+      old_values: null,
+      new_values: { warning_at: '2026-11-01T12:30:00Z' },
+      created_at: '2026-11-01T12:30:00Z',
+    }
+    expect(describeActivity(slaWarning)).toBe('SLA deadline approaching')
+
+    const escalated: TicketActivity = {
+      id: 15,
+      ticket_id: 1,
+      actor: null,
+      type: 'escalated',
+      old_values: null,
+      new_values: { due_at: '2026-11-01T13:00:00Z' },
+      created_at: '2026-11-01T13:01:00Z',
+    }
+    expect(describeActivity(escalated)).toBe('Escalated: SLA deadline passed')
   })
 })
 

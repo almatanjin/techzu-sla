@@ -1,5 +1,11 @@
 export type UserRole = 'admin' | 'agent' | 'customer'
 
+export type AgentSettings = {
+  is_available: boolean
+  max_open_tickets: number | null
+  category_ids: number[]
+}
+
 export type User = {
   id: number
   name: string
@@ -7,6 +13,7 @@ export type User = {
   role: UserRole
   is_active: boolean
   created_at?: string
+  agent_settings?: AgentSettings | null
 }
 
 export type AuthTokenResponse = {
