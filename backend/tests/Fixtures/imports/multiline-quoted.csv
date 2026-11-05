@@ -1,0 +1,5 @@
+external_reference,customer_email,subject,description,priority,category,status
+MULTI-1,customer1@techzu-sla.test,Multiline subject,"Line 1 of description
+Line 2 of description
+Line 3 of description",high,Billing,open
+

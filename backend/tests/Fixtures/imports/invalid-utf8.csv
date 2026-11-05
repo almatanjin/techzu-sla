@@ -1,0 +1,2 @@
+external_reference,customer_email,subject,description,priority,category,status
+UTF8-BAD,customer1@techzu-sla.test,Bad ÿþ Bytes,Valid Description,high,Billing,open

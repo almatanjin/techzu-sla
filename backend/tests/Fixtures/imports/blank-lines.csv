@@ -1,0 +1,6 @@
+external_reference,customer_email,subject,description,priority,category,status
+BLANK-1,customer1@techzu-sla.test,First ticket,First description,high,Billing,open
+
+BLANK-2,customer2@techzu-sla.test,Second ticket,Second description,medium,Technical,open
+
+

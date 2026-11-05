@@ -1,0 +1,10 @@
+external_reference,customer_email,subject,description,priority,category,status,created_at,resolved_at,closed_at
+TIME-DHAKA,customer1@techzu-sla.test,Dhaka Time,Desc,high,Billing,open,2026-10-01 09:00,,
+TIME-ISO,customer1@techzu-sla.test,ISO Time,Desc,high,Billing,open,2026-10-01T09:00:00+00:00,,
+TIME-EMPTY,customer1@techzu-sla.test,Empty Created Time,Desc,high,Billing,open,,,
+ERR-RESOLVED-NO-TIME,customer1@techzu-sla.test,Resolved No Time,Desc,high,Billing,resolved,2026-10-01 09:00,,
+ERR-CLOSED-NO-TIME,customer1@techzu-sla.test,Closed No Time,Desc,high,Billing,closed,2026-10-01 09:00,,
+ERR-ACTIVE-WITH-RESOLVED,customer1@techzu-sla.test,Active With Resolved,Desc,high,Billing,open,2026-10-01 09:00,2026-10-01 10:00,
+ERR-FUTURE-TIME,customer1@techzu-sla.test,Future Time,Desc,high,Billing,open,2099-01-01 09:00,,
+ERR-RESOLVED-BEFORE-CREATED,customer1@techzu-sla.test,Resolved Before Created,Desc,high,Billing,resolved,2026-10-02 09:00,2026-10-01 09:00,
+

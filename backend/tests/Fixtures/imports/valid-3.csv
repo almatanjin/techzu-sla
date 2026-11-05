@@ -1,0 +1,5 @@
+external_reference,customer_email,subject,description,priority,category,status
+REF-001,customer1@techzu-sla.test,Cannot access billing portal,Invoices fail to load with 500 error,high,Billing,open
+REF-002,customer2@techzu-sla.test,Network connectivity drops,VPN disconnects frequently during peak hours,medium,Technical,open
+REF-003,customer3@techzu-sla.test,Update company address,Please update our registered billing address,low,General,open
+

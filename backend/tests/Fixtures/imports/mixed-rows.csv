@@ -1,0 +1,13 @@
+external_reference,customer_email,subject,description,priority,category,status
+VAL-1,customer1@techzu-sla.test,Valid Subject,Valid Description,high,Billing,open
+ERR-1,unknown@example.com,Unknown Email Subject,Valid Description,high,Billing,open
+ERR-2,agent1@techzu-sla.test,Agent Email Subject,Valid Description,high,Billing,open
+ERR-3,customer1@techzu-sla.test,Urgent Priority Subject,Valid Description,urgent,Billing,open
+ERR-4,customer1@techzu-sla.test,Unknown Category Subject,Valid Description,high,Fantasy,open
+ERR-5,customer1@techzu-sla.test,,Missing Subject Description,high,Billing,open
+ERR-6,customer1@techzu-sla.test,This subject is purposely made to exceed the two hundred character limit set by the system validation rules to verify that the import validator accurately catches and rejects overly long subjects in CSV rows.,Long Subject Description,high,Billing,open
+,customer1@techzu-sla.test,Missing Reference Subject,Valid Description,high,Billing,open
+ERR-8,unknown2@example.com,Two Problems Subject,Valid Description,urgent,Billing,open
+VAL-2,customer1@techzu-sla.test,High and billing in lowercase,Valid Description,HIGH,billing,open
+VAL-3,deactivated@techzu-sla.test,Deactivated Customer Subject,Valid Description,medium,Technical,open
+VAL-1,customer1@techzu-sla.test,Duplicate of line 2,Valid Description,high,Billing,open

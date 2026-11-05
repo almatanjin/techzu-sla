@@ -1,0 +1,2 @@
+Status,Subject,External_Reference,Customer_Email,Description,Priority,Category,Notes
+open,BOM ticket,BOM-1,customer1@techzu-sla.test,Testing BOM and reordered header,high,Billing,Some random notes

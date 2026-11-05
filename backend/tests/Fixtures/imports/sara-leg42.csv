@@ -1,0 +1,3 @@
+external_reference,customer_email,subject,description,priority,category,status,created_at
+LEG-42,ana@techzu-sla.test,Imported ticket for Ana,Details of LEG-42,high,Billing,open,2026-10-01 09:00
+

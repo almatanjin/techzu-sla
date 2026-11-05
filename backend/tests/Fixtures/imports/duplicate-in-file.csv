@@ -1,0 +1,8 @@
+external_reference,customer_email,subject,description,priority,category,status
+LEG-42,customer1@techzu-sla.test,First LEG-42,Desc 1,high,Billing,open
+OTHER-1,customer1@techzu-sla.test,Other 1,Desc 2,high,Billing,open
+OTHER-2,customer1@techzu-sla.test,Other 2,Desc 3,high,Billing,open
+OTHER-3,customer1@techzu-sla.test,Other 3,Desc 4,high,Billing,open
+OTHER-4,customer1@techzu-sla.test,Other 4,Desc 5,high,Billing,open
+LEG-42,customer1@techzu-sla.test,Second LEG-42,Desc 6,high,Billing,open
+

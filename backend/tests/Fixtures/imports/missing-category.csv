@@ -1,0 +1,3 @@
+external_reference,customer_email,subject,description,priority,status
+NO-CAT-1,customer1@techzu-sla.test,Missing category header,Description here,high,open
+

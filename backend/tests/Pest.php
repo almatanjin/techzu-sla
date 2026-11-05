@@ -12,6 +12,7 @@ use Tests\TestCase;
 pest()->extend(TestCase::class)->use(LazilyRefreshDatabase::class)->in('Feature');
 pest()->extend(TestCase::class)->use(DatabaseTruncation::class)->in('Concurrency');
 pest()->extend(TestCase::class)->use(DatabaseTruncation::class)->in('Search');
+pest()->extend(TestCase::class)->use(DatabaseTruncation::class)->in('Import');
 
 function fixtureUpload(string $filename): \Illuminate\Http\UploadedFile
 {
@@ -19,3 +20,11 @@ function fixtureUpload(string $filename): \Illuminate\Http\UploadedFile
 
     return new \Illuminate\Http\UploadedFile($path, $filename, null, null, true);
 }
+
+function importFixtureUpload(string $filename): \Illuminate\Http\UploadedFile
+{
+    $path = __DIR__.'/Fixtures/imports/'.$filename;
+
+    return new \Illuminate\Http\UploadedFile($path, $filename, 'text/csv', null, true);
+}
+

@@ -17,6 +17,9 @@
         <testsuite name="Search">
             <directory>tests/Search</directory>
         </testsuite>
+        <testsuite name="Import">
+            <directory>tests/Import</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
