@@ -11,6 +11,7 @@ use App\Http\Controllers\AttachmentDownloadController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\TicketActivityController;
 use App\Http\Controllers\TicketAssignmentController;
@@ -41,6 +42,7 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
 });
 
 Route::middleware('auth:sanctum')->group(function (): void {
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');
     Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
     Route::get('customers/{user}', [CustomerController::class, 'show'])->name('customers.show');
