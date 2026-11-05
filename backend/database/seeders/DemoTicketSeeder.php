@@ -10,8 +10,10 @@ use App\Models\Category;
 use App\Models\Ticket;
 use App\Models\TicketActivity;
 use App\Models\User;
+use App\Services\Sla\SlaCalculator;
 use App\Services\Tickets\TicketNumberGenerator;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -35,6 +37,7 @@ class DemoTicketSeeder extends Seeder
         }
 
         $generator = app(TicketNumberGenerator::class);
+        $slaCalculator = app(SlaCalculator::class);
 
         $priorities = [
             TicketPriority::Low,
@@ -71,6 +74,17 @@ class DemoTicketSeeder extends Seeder
         $baseDate = Carbon::now()->subDays(30);
         $ticketIndex = 0;
 
+        $now = CarbonImmutable::now();
+        $approachingStart = null;
+        for ($step = 1; $step <= 1000; $step++) {
+            $time = $now->subMinutes($step * 15);
+            $deadlines = $slaCalculator->deadlinesFor(TicketPriority::Low, $time);
+            if ($deadlines->warningAt->lte($now) && $deadlines->dueAt->gt($now)) {
+                $approachingStart = $time;
+                break;
+            }
+        }
+
         foreach ($customers as $cIdx => $customer) {
             // Seed 8 tickets per customer across statuses
             for ($k = 0; $k < 8; $k++) {
@@ -95,8 +109,41 @@ class DemoTicketSeeder extends Seeder
                     ? (clone $createdAt)->addHours(5)
                     : null;
 
+                if ($ticketIndex === 39) {
+                    $status = TicketStatus::Open;
+                    $priority = TicketPriority::Low;
+                    $createdAt = Carbon::now()->subMinutes(5);
+                    $updatedAt = clone $createdAt;
+                    $resolvedAt = null;
+                    $closedAt = null;
+                } elseif ($ticketIndex === 38 && $approachingStart !== null) {
+                    $status = TicketStatus::Open;
+                    $priority = TicketPriority::Low;
+                    $createdAt = Carbon::instance($approachingStart);
+                    $updatedAt = clone $createdAt;
+                    $resolvedAt = null;
+                    $closedAt = null;
+                } elseif ($ticketIndex === 37) {
+                    $status = TicketStatus::Resolved;
+                    $priority = TicketPriority::Medium;
+                    $createdAt = Carbon::now()->subDays(3);
+                    $deadlines = $slaCalculator->deadlinesFor($priority, CarbonImmutable::instance($createdAt));
+                    $resolvedAt = Carbon::instance($deadlines->warningAt);
+                    $updatedAt = clone $resolvedAt;
+                    $closedAt = null;
+                } elseif ($ticketIndex === 36) {
+                    $status = TicketStatus::Resolved;
+                    $priority = TicketPriority::Medium;
+                    $createdAt = Carbon::now()->subDays(4);
+                    $deadlines = $slaCalculator->deadlinesFor($priority, CarbonImmutable::instance($createdAt));
+                    $resolvedAt = Carbon::instance($deadlines->dueAt)->addHours(2);
+                    $updatedAt = clone $resolvedAt;
+                    $closedAt = null;
+                }
+
                 DB::transaction(function () use (
                     $generator,
+                    $slaCalculator,
                     $customer,
                     $category,
                     $assignedAgent,
@@ -109,6 +156,7 @@ class DemoTicketSeeder extends Seeder
                     $closedAt
                 ) {
                     $ticketNumber = $generator->next();
+                    $deadlines = $slaCalculator->deadlinesFor($priority, CarbonImmutable::instance($createdAt));
 
                     $ticket = Ticket::create([
                         'ticket_number' => $ticketNumber,
@@ -125,6 +173,10 @@ class DemoTicketSeeder extends Seeder
                         'lock_version' => 1,
                         'created_at' => $createdAt,
                         'updated_at' => $updatedAt,
+                        'sla_policy_minutes' => $deadlines->policyMinutes,
+                        'sla_started_at' => $deadlines->startedAt,
+                        'sla_warning_at' => $deadlines->warningAt,
+                        'sla_due_at' => $deadlines->dueAt,
                     ]);
 
                     // 1. Created activity

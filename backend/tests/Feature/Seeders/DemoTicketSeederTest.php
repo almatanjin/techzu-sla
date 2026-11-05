@@ -75,3 +75,22 @@ it('is skipped when tickets already exist', function () {
     // Count remains 1
     expect(Ticket::count())->toBe(1);
 });
+
+
+it('provides tickets in every sla status after running DatabaseSeeder', function () {
+    $this->seed(\Database\Seeders\DatabaseSeeder::class);
+
+    $admin = User::where('role', 'admin')->first();
+    $token = $admin->createToken('admin')->plainTextToken;
+
+    $statuses = ['within', 'approaching', 'breached', 'met', 'missed'];
+
+    foreach ($statuses as $status) {
+        $response = $this->withToken($token)
+            ->getJson("/api/v1/tickets?view=all&sla_status={$status}");
+
+        $response->assertOk();
+        $items = $response->json('data');
+        expect(count($items))->toBeGreaterThanOrEqual(1, "Expected at least one ticket with sla_status {$status}");
+    }
+});

@@ -115,12 +115,73 @@ All API endpoints reside under the `/api/v1` prefix.
 
 | Method | Endpoint | Access | Description |
 | ------ | -------- | ------ | ----------- |
-| `GET` | `/api/v1/tickets` | Authenticated | List tickets (`view=active` or `view=closed`, paginated) |
+| `GET` | `/api/v1/tickets` | Authenticated | List tickets (`view=active`, `view=closed`, or `view=all`, with optional `sla_status` for staff) |
 | `POST` | `/api/v1/tickets` | Authenticated | Open a support ticket |
-| `GET` | `/api/v1/tickets/{ticket_number}` | Authenticated | Retrieve ticket details and permissions |
+| `GET` | `/api/v1/tickets/{ticket_number}` | Authenticated | Retrieve ticket details and permissions (includes staff `sla` block) |
 | `PATCH` | `/api/v1/tickets/{ticket_number}` | Authenticated | Update ticket content or classification with `lock_version` |
 | `POST` | `/api/v1/tickets/{ticket_number}/status` | Authenticated | Transition ticket status with `lock_version` |
 | `GET` | `/api/v1/tickets/{ticket_number}/activities` | Authenticated | Retrieve ticket activity history timeline (oldest first) |
+
+### SLA and Business Hours Administration (`/api/v1/admin`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `GET` | `/api/v1/admin/sla-policies` | Admin only | List resolution policies and warning thresholds |
+| `PATCH` | `/api/v1/admin/sla-policies/{priority}` | Admin only | Update resolution minutes and warning threshold percentage |
+| `GET` | `/api/v1/admin/business-hours` | Admin only | Retrieve weekly business operating schedule and timezone |
+| `PUT` | `/api/v1/admin/business-hours` | Admin only | Replace the 7-day operating schedule |
+| `GET` | `/api/v1/admin/holidays` | Admin only | List holidays for a given year sorted by date |
+| `POST` | `/api/v1/admin/holidays` | Admin only | Add a new holiday date and name |
+| `DELETE` | `/api/v1/admin/holidays/{id}` | Admin only | Delete a holiday by ID |
+
+## SLA and business hours
+
+Every ticket receives an SLA resolution deadline based on its priority, measured strictly in business hours.
+Because new required SLA columns exist on tickets, local databases must be rebuilt with `docker compose exec app php artisan migrate:fresh --seed`.
+
+### Business hours schedule and timezone
+
+The business calendar is defined by a weekly schedule and a list of holidays.
+The configured timezone `TICKETS_TIMEZONE` (default: `Asia/Dhaka`, UTC+6) drives both ticket numbering years and business hours calculations.
+By default, working days are Sunday through Thursday from 09:00 to 18:00 (9 working hours per day).
+Friday and Saturday are closed days.
+Configured holidays count as closed days even when falling on a regular working weekday.
+
+### SLA policy defaults and "48 hours" interpretation
+
+Policy durations are specified in business minutes with a default 75% warning threshold:
+- **Low**: 2880 business minutes (48 business hours, spanning 5 full 9-hour working days plus 3 hours into the 6th working day).
+- **Medium**: 1440 business minutes (24 business hours).
+- **High**: 480 business minutes (8 business hours).
+- **Critical**: 120 business minutes (2 business hours).
+
+### Worked examples
+
+All timestamps are stored in UTC and evaluated against the business calendar:
+- **Critical ticket late on Thursday**: A Critical ticket created Thursday at 17:00 business time receives 1 hour on Thursday (until 18:00 closing).
+Friday and Saturday are closed.
+The remaining 1 hour is counted on Sunday morning from 09:00, making the deadline Sunday 10:00 (with warning threshold at Sunday 09:30).
+- **Start on a closed day**: A ticket created Friday at 11:00 starts counting from Sunday 09:00 opening.
+A 2-hour Critical ticket is due Sunday 11:00.
+- **Start before opening**: A ticket created Sunday at 08:00 starts counting at 09:00 opening.
+- **Holiday during the week**: When Thursday is a holiday, a Critical ticket created Wednesday at 17:30 counts 30 minutes on Wednesday, skips Thursday, Friday, and Saturday, and finishes its remaining 90 minutes Sunday at 10:30.
+
+### The no-pause and snapshot rules
+
+- **No pause rule**: The SLA clock never pauses for customer replies or status transitions.
+Waiting for customer response still consumes SLA time.
+If a resolved ticket is reopened after its deadline has passed, its SLA status immediately registers as `breached`.
+- **Snapshot rule**: Deadlines are computed and stored upon ticket creation.
+Changing a policy, the weekly schedule, or holidays applies exclusively to tickets created afterwards.
+Existing ticket deadlines are never shifted by calendar or policy edits.
+Reprioritizing an open ticket recomputes its deadline from its original start timestamp using the target priority's current policy.
+
+### Staff-only visibility
+
+SLA details are restricted to staff roles (Administrators and Support Agents).
+Responses for staff include an `sla` object containing `status`, `started_at`, `warning_at`, `due_at`, and `policy_minutes`.
+Responses to Customers completely omit the `sla` block.
+The `sla_status` query filter (`within`, `approaching`, `breached`, `met`, `missed`) on `GET /api/v1/tickets` is accepted for staff and silently ignored for customers.
 
 ## Ticket Status Workflow
 
