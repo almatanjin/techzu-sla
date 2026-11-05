@@ -33,6 +33,11 @@ class UpdateUserRequest extends FormRequest
     public function rules(): array
     {
         $target = $this->route('user');
+        $targetRole = $this->has('role')
+            ? $this->input('role')
+            : ($target instanceof User ? ($target->role instanceof UserRole ? $target->role->value : (string) $target->role) : null);
+
+        $isAgent = $targetRole === UserRole::Agent->value;
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],
@@ -46,6 +51,10 @@ class UpdateUserRequest extends FormRequest
             'role' => ['sometimes', 'string', Rule::enum(UserRole::class)],
             'password' => ['sometimes', 'nullable', 'string', Password::min(8)->letters()->numbers()],
             'is_active' => ['sometimes', 'boolean'],
+            'is_available' => $isAgent ? ['sometimes', 'boolean'] : ['prohibited'],
+            'max_open_tickets' => $isAgent ? ['sometimes', 'nullable', 'integer', 'between:1,1000'] : ['prohibited'],
+            'category_ids' => $isAgent ? ['sometimes', 'array'] : ['prohibited'],
+            'category_ids.*' => ['integer', 'distinct', 'exists:categories,id'],
         ];
     }
 
@@ -56,6 +65,9 @@ class UpdateUserRequest extends FormRequest
         $hasRole = $this->has('role');
         $hasPassword = $this->filled('password');
         $hasIsActive = $this->has('is_active');
+        $hasIsAvailable = $this->has('is_available');
+        $hasMaxOpenTickets = $this->has('max_open_tickets');
+        $hasCategoryIds = $this->has('category_ids');
 
         $roleValue = $this->validated('role');
         $role = $hasRole && $roleValue !== null ? UserRole::from((string) $roleValue) : null;
@@ -66,12 +78,17 @@ class UpdateUserRequest extends FormRequest
             role: $role,
             password: $hasPassword ? (string) $this->validated('password') : null,
             isActive: $hasIsActive ? (bool) $this->validated('is_active') : null,
+            isAvailable: $hasIsAvailable ? (bool) $this->validated('is_available') : null,
+            maxOpenTickets: $hasMaxOpenTickets && $this->validated('max_open_tickets') !== null ? (int) $this->validated('max_open_tickets') : null,
+            categoryIds: $hasCategoryIds ? array_map('intval', (array) $this->validated('category_ids')) : null,
             hasName: $hasName,
             hasEmail: $hasEmail,
             hasRole: $hasRole,
             hasPassword: $hasPassword,
             hasIsActive: $hasIsActive,
+            hasIsAvailable: $hasIsAvailable,
+            hasMaxOpenTickets: $hasMaxOpenTickets,
+            hasCategoryIds: $hasCategoryIds,
         );
     }
 }
-

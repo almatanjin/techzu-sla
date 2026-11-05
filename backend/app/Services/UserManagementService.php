@@ -32,7 +32,7 @@ class UserManagementService
             });
         }
 
-        return $query->latest('id')->paginate($perPage);
+        return $query->with('categories')->latest('id')->paginate($perPage);
     }
 
     public function create(CreateUserData $data): User
@@ -92,7 +92,19 @@ class UserManagementService
                 $shouldRevokeTokens = true;
             }
 
+            if ($data->hasIsAvailable && $data->isAvailable !== null) {
+                $target->is_available = $data->isAvailable;
+            }
+
+            if ($data->hasMaxOpenTickets) {
+                $target->max_open_tickets = $data->maxOpenTickets;
+            }
+
             $target->save();
+
+            if ($data->hasCategoryIds && $data->categoryIds !== null) {
+                $target->categories()->sync($data->categoryIds);
+            }
 
             if ($shouldRevokeTokens) {
                 $target->tokens()->delete();

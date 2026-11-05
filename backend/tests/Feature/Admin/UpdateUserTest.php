@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\Category;
 use App\Models\User;
 
 beforeEach(function () {
@@ -144,4 +145,152 @@ it('returns 405 Method Not Allowed on DELETE requests to admin users', function 
     $response->assertStatus(405);
     expect(User::find($target->id))->not->toBeNull();
 });
+
+it('allows admin to update agent settings', function () {
+    $rafi = User::factory()->agent()->create([
+        'name' => 'Rafi',
+    ]);
+    $billing = Category::factory()->create(['name' => 'Billing']);
+    $technical = Category::factory()->create(['name' => 'Technical']);
+
+    $response = $this->withToken($this->token)
+        ->patchJson("/api/v1/admin/users/{$rafi->id}", [
+            'is_available' => false,
+            'max_open_tickets' => 5,
+            'category_ids' => [$billing->id, $technical->id],
+        ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'id' => $rafi->id,
+            'agent_settings' => [
+                'is_available' => false,
+                'max_open_tickets' => 5,
+                'category_ids' => [$billing->id, $technical->id],
+            ],
+        ]);
+
+    $getResponse = $this->withToken($this->token)
+        ->getJson("/api/v1/admin/users/{$rafi->id}");
+
+    $getResponse->assertOk()
+        ->assertJson([
+            'id' => $rafi->id,
+            'agent_settings' => [
+                'is_available' => false,
+                'max_open_tickets' => 5,
+                'category_ids' => [$billing->id, $technical->id],
+            ],
+        ]);
+});
+
+it('rejects agent settings fields sent for a customer with 422 on that field', function (string $field, mixed $value) {
+    $customer = User::factory()->customer()->create();
+
+    $response = $this->withToken($this->token)
+        ->patchJson("/api/v1/admin/users/{$customer->id}", [
+            $field => $value,
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors([$field]);
+})->with([
+    'is_available' => ['is_available', false],
+    'max_open_tickets' => ['max_open_tickets', 5],
+    'category_ids' => ['category_ids', [1]],
+]);
+
+it('allows setting agent settings while promoting customer to agent', function () {
+    $customer = User::factory()->customer()->create();
+
+    $response = $this->withToken($this->token)
+        ->patchJson("/api/v1/admin/users/{$customer->id}", [
+            'role' => 'agent',
+            'max_open_tickets' => 5,
+        ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'id' => $customer->id,
+            'role' => 'agent',
+            'agent_settings' => [
+                'max_open_tickets' => 5,
+            ],
+        ]);
+});
+
+it('rejects out of range max_open_tickets with 422', function (int $value) {
+    $agent = User::factory()->agent()->create();
+
+    $response = $this->withToken($this->token)
+        ->patchJson("/api/v1/admin/users/{$agent->id}", [
+            'max_open_tickets' => $value,
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['max_open_tickets']);
+})->with([0, 1001]);
+
+it('rejects unknown category id with 422', function () {
+    $agent = User::factory()->agent()->create();
+
+    $response = $this->withToken($this->token)
+        ->patchJson("/api/v1/admin/users/{$agent->id}", [
+            'category_ids' => [999999],
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['category_ids.0']);
+});
+
+it('clears max_open_tickets when sent as null', function () {
+    $agent = User::factory()->agent()->create([
+        'max_open_tickets' => 5,
+    ]);
+
+    $response = $this->withToken($this->token)
+        ->patchJson("/api/v1/admin/users/{$agent->id}", [
+            'max_open_tickets' => null,
+        ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'id' => $agent->id,
+            'agent_settings' => [
+                'max_open_tickets' => null,
+            ],
+        ]);
+
+    expect($agent->refresh()->max_open_tickets)->toBeNull();
+});
+
+it('forbids an agent from sending settings for themselves with 403', function () {
+    $agent = User::factory()->agent()->create();
+    $token = $agent->createToken('agent-token')->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->patchJson("/api/v1/admin/users/{$agent->id}", [
+            'is_available' => false,
+        ]);
+
+    $response->assertForbidden();
+});
+
+it('returns null for customer agent_settings in user show response', function () {
+    $customer = User::factory()->customer()->create();
+
+    $response = $this->withToken($this->token)
+        ->getJson("/api/v1/admin/users/{$customer->id}");
+
+    $response->assertOk()
+        ->assertJson([
+            'id' => $customer->id,
+            'agent_settings' => null,
+        ]);
+});
+
+
+
+
+
 
