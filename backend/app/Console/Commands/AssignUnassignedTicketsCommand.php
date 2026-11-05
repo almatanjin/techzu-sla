@@ -35,6 +35,7 @@ class AssignUnassignedTicketsCommand extends Command
             ->whereNull('assigned_agent_id')
             ->whereNull('first_assigned_at')
             ->whereNull('escalated_at')
+            ->whereNull('ticket_import_id')
             ->orderBy('id')
             ->chunkById(100, function ($tickets) use ($service) {
                 foreach ($tickets as $ticket) {

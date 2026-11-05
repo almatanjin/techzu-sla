@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BusinessHourController as AdminBusinessHourContro
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
 use App\Http\Controllers\Admin\SlaPolicyController as AdminSlaPolicyController;
+use App\Http\Controllers\Admin\TicketImportController as AdminTicketImportController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\AttachmentDownloadController;
@@ -71,5 +72,10 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('holidays', [AdminHolidayController::class, 'index'])->name('holidays.index');
         Route::post('holidays', [AdminHolidayController::class, 'store'])->name('holidays.store');
         Route::delete('holidays/{holiday}', [AdminHolidayController::class, 'destroy'])->name('holidays.destroy');
+        Route::get('imports', [AdminTicketImportController::class, 'index'])->name('imports.index');
+        Route::post('imports', [AdminTicketImportController::class, 'store'])->name('imports.store');
+        Route::get('imports/template.csv', [AdminTicketImportController::class, 'template'])->name('imports.template');
+        Route::get('imports/{import}', [AdminTicketImportController::class, 'show'])->name('imports.show');
+        Route::get('imports/{import}/errors.csv', [AdminTicketImportController::class, 'errors'])->name('imports.errors');
     });
 });

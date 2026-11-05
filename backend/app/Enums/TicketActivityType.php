@@ -5,6 +5,7 @@ namespace App\Enums;
 enum TicketActivityType: string
 {
     case Created = 'created';
+    case Imported = 'imported';
     case SubjectChanged = 'subject_changed';
     case DescriptionChanged = 'description_changed';
     case PriorityChanged = 'priority_changed';

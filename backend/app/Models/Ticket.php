@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'ticket_number',
+    'external_reference',
+    'ticket_import_id',
     'subject',
     'description',
     'priority',
@@ -101,6 +103,14 @@ class Ticket extends Model
     public function assignedAgent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_agent_id');
+    }
+
+    /**
+     * @return BelongsTo<TicketImport, $this>
+     */
+    public function ticketImport(): BelongsTo
+    {
+        return $this->belongsTo(TicketImport::class);
     }
 
     /**
