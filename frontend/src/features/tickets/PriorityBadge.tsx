@@ -3,10 +3,10 @@ import { priorityLabels } from './labels'
 import type { TicketPriority } from './types'
 
 const priorityVariants: Record<TicketPriority, BadgeVariant> = {
-  low: 'slate',
-  medium: 'blue',
-  high: 'orange',
-  critical: 'rose',
+  low: 'neutral',
+  medium: 'info',
+  high: 'attention',
+  critical: 'danger',
 }
 
 type Props = {

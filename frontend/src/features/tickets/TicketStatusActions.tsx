@@ -11,6 +11,14 @@ type Props = {
   onConflict?: (conflictTicket: Ticket, message: string) => void
 }
 
+const statusButtonVariants: Record<TicketStatus, string> = {
+  open: 'btn-success',
+  resolved: 'btn-success',
+  in_progress: 'btn-primary',
+  waiting_for_customer: 'btn-warning',
+  closed: 'btn-secondary',
+}
+
 export function TicketStatusActions({ ticket, onStatusChanged, onConflict }: Props) {
   const apiClient = useApiClient()
   const queryClient = useQueryClient()
@@ -74,27 +82,10 @@ export function TicketStatusActions({ ticket, onStatusChanged, onConflict }: Pro
     return status
   }
 
-  const getButtonStyles = (status: TicketStatus): string => {
-    switch (status) {
-      case 'open':
-        return 'bg-emerald-600 text-white hover:bg-emerald-500 focus:ring-emerald-500'
-      case 'in_progress':
-        return 'bg-blue-600 text-white hover:bg-blue-500 focus:ring-blue-500'
-      case 'waiting_for_customer':
-        return 'bg-amber-600 text-white hover:bg-amber-500 focus:ring-amber-500'
-      case 'resolved':
-        return 'bg-emerald-600 text-white hover:bg-emerald-500 focus:ring-emerald-500'
-      case 'closed':
-        return 'bg-slate-700 text-white hover:bg-slate-600 focus:ring-slate-500'
-      default:
-        return 'bg-slate-600 text-white hover:bg-slate-500 focus:ring-slate-500'
-    }
-  }
-
   return (
     <div className="space-y-3">
       {actionError && (
-        <p role="alert" className="text-xs text-rose-600">
+        <p role="alert" className="text-xs text-danger">
           {actionError}
         </p>
       )}
@@ -106,9 +97,7 @@ export function TicketStatusActions({ ticket, onStatusChanged, onConflict }: Pro
             type="button"
             disabled={mutation.isPending}
             onClick={() => mutation.mutate(status)}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 ${getButtonStyles(
-              status,
-            )}`}
+            className={`btn btn-sm ${statusButtonVariants[status] ?? 'btn-secondary'}`}
           >
             {getActionLabel(status)}
           </button>
@@ -117,4 +106,3 @@ export function TicketStatusActions({ ticket, onStatusChanged, onConflict }: Pro
     </div>
   )
 }
-

@@ -3,11 +3,11 @@ import { statusLabels } from './labels'
 import type { TicketStatus } from './types'
 
 const statusVariants: Record<TicketStatus, BadgeVariant> = {
-  open: 'blue',
-  in_progress: 'amber',
-  waiting_for_customer: 'orange',
-  resolved: 'emerald',
-  closed: 'slate',
+  open: 'info',
+  in_progress: 'warning',
+  waiting_for_customer: 'attention',
+  resolved: 'success',
+  closed: 'neutral',
 }
 
 type Props = {

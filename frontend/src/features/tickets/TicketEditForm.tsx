@@ -116,7 +116,7 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
   return (
     <form onSubmit={handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
       {formError && (
-        <div role="alert" className="rounded-md bg-rose-50 p-3 text-xs text-rose-800">
+        <div role="alert" className="alert alert-danger p-3 text-xs">
           {formError}
         </div>
       )}
@@ -124,7 +124,7 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
       {canEditContent ? (
         <>
           <div>
-            <label htmlFor="edit-subject" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="edit-subject" className="label">
               Subject
             </label>
             <input
@@ -132,17 +132,17 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
               type="text"
               maxLength={200}
               {...register('subject', { required: 'Subject is required' })}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input"
             />
             {errors.subject && (
-              <p role="alert" className="mt-1 text-xs text-rose-600">
+              <p role="alert" className="mt-1 text-xs text-danger">
                 {errors.subject.message}
               </p>
             )}
           </div>
 
           <div>
-            <label htmlFor="edit-description" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="edit-description" className="label">
               Description
             </label>
             <textarea
@@ -150,17 +150,17 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
               rows={5}
               maxLength={10000}
               {...register('description', { required: 'Description is required' })}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input"
             />
             {errors.description && (
-              <p role="alert" className="mt-1 text-xs text-rose-600">
+              <p role="alert" className="mt-1 text-xs text-danger">
                 {errors.description.message}
               </p>
             )}
           </div>
         </>
       ) : (
-        <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap border border-slate-200">
+        <div className="rounded-md bg-canvas p-4 text-sm text-fg-secondary whitespace-pre-wrap border border-border">
           {ticket.description}
         </div>
       )}
@@ -168,13 +168,13 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
       {canEditClassification && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="edit-priority" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="edit-priority" className="label">
               Priority
             </label>
             <select
               id="edit-priority"
               {...register('priority')}
-              className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input"
             >
               {(['low', 'medium', 'high', 'critical'] as TicketPriority[]).map((p) => (
                 <option key={p} value={p}>
@@ -183,20 +183,20 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
               ))}
             </select>
             {errors.priority && (
-              <p role="alert" className="mt-1 text-xs text-rose-600">
+              <p role="alert" className="mt-1 text-xs text-danger">
                 {errors.priority.message}
               </p>
             )}
           </div>
 
           <div>
-            <label htmlFor="edit-category" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="edit-category" className="label">
               Category
             </label>
             <select
               id="edit-category"
               {...register('category_id')}
-              className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input"
             >
               {categories?.map((cat) => (
                 <option key={cat.id} value={cat.id}>
@@ -205,7 +205,7 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
               ))}
             </select>
             {errors.category_id && (
-              <p role="alert" className="mt-1 text-xs text-rose-600">
+              <p role="alert" className="mt-1 text-xs text-danger">
                 {errors.category_id.message}
               </p>
             )}
@@ -217,7 +217,7 @@ export function TicketEditForm({ ticket, onTicketUpdated, onConflict }: Props) {
         <button
           type="submit"
           disabled={isSubmitting || mutation.isPending}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          className="btn btn-primary"
         >
           {isSubmitting || mutation.isPending ? 'Saving...' : 'Save Changes'}
         </button>

@@ -28,7 +28,7 @@ export function TicketDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-500">
+      <div className="card p-12 text-center text-fg-subtle">
         Loading ticket...
       </div>
     )
@@ -36,12 +36,12 @@ export function TicketDetailPage() {
 
   if (isError || !ticket) {
     return (
-      <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
+      <div role="alert" className="alert alert-danger p-6 text-center">
         <p>Failed to load ticket.</p>
         <button
           type="button"
           onClick={() => void refetch()}
-          className="mt-3 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-500"
+          className="mt-3 btn btn-danger btn-sm"
         >
           Retry
         </button>
@@ -58,20 +58,20 @@ export function TicketDetailPage() {
       <div>
         <Link
           to="/tickets"
-          className="inline-flex items-center text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+          className="link-muted inline-flex items-center text-xs"
         >
           &larr; Back to tickets
         </Link>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <h1 className="font-mono text-2xl font-bold tracking-tight text-slate-900">
+              <h1 className="font-mono text-2xl font-bold tracking-tight text-fg">
                 {ticket.ticket_number}
               </h1>
               <StatusBadge status={ticket.status} />
               <PriorityBadge priority={ticket.priority} />
             </div>
-            <p className="text-lg font-semibold text-slate-900">{ticket.subject}</p>
+            <p className="text-lg font-semibold text-fg">{ticket.subject}</p>
           </div>
         </div>
       </div>
@@ -80,7 +80,7 @@ export function TicketDetailPage() {
       {conflictMessage && (
         <div
           role="alert"
-          className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-medium text-amber-900 shadow-sm"
+          className="alert alert-warning p-4 text-sm font-medium shadow-sm"
         >
           {conflictMessage}
         </div>
@@ -91,8 +91,8 @@ export function TicketDetailPage() {
         {/* Left 2 cols: Content / Edit form + Timeline */}
         <div className="space-y-6 lg:col-span-2">
           {isEditable ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-base font-semibold text-slate-900">Ticket Details</h2>
+            <div className="card p-6">
+              <h2 className="mb-4 text-base font-semibold text-fg">Ticket Details</h2>
               <TicketEditForm
                 ticket={ticket}
                 onTicketUpdated={() => setConflictMessage(null)}
@@ -100,16 +100,16 @@ export function TicketDetailPage() {
               />
             </div>
           ) : (
-            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-base font-semibold text-slate-900">Description</h2>
-              <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed border-t border-slate-100 pt-4">
+            <div className="card p-6">
+              <h2 className="mb-4 text-base font-semibold text-fg">Description</h2>
+              <div className="whitespace-pre-wrap text-sm text-fg-secondary leading-relaxed border-t border-border-subtle pt-4">
                 {ticket.description}
               </div>
             </div>
           )}
 
           {/* Activity Timeline */}
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="card p-6">
             <ActivityTimeline ticketNumber={ticket.ticket_number} />
           </div>
         </div>
@@ -118,8 +118,8 @@ export function TicketDetailPage() {
         <div className="space-y-6">
           {/* Status actions card */}
           {ticket.permissions.allowed_statuses.length > 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <div className="card p-6">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-fg-subtle">
                 Actions
               </h3>
               <TicketStatusActions
@@ -131,48 +131,48 @@ export function TicketDetailPage() {
           )}
 
           {/* Metadata card */}
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
+          <div className="card p-6">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">
               Information
             </h3>
-            <dl className="divide-y divide-slate-100 text-sm">
+            <dl className="divide-y divide-border-subtle text-sm">
               <div className="py-2.5 flex justify-between">
-                <dt className="text-slate-500">Customer</dt>
-                <dd className="font-medium text-slate-900 text-right">
+                <dt className="text-fg-subtle">Customer</dt>
+                <dd className="font-medium text-fg text-right">
                   <div>{ticket.customer.name}</div>
-                  <div className="text-xs text-slate-500">{ticket.customer.email}</div>
+                  <div className="text-xs text-fg-subtle">{ticket.customer.email}</div>
                 </dd>
               </div>
               <div className="py-2.5 flex justify-between">
-                <dt className="text-slate-500">Created by</dt>
-                <dd className="font-medium text-slate-900">{ticket.created_by.name}</dd>
+                <dt className="text-fg-subtle">Created by</dt>
+                <dd className="font-medium text-fg">{ticket.created_by.name}</dd>
               </div>
               <div className="py-2.5 flex justify-between">
-                <dt className="text-slate-500">Assigned</dt>
-                <dd className="font-medium text-slate-900">
+                <dt className="text-fg-subtle">Assigned</dt>
+                <dd className="font-medium text-fg">
                   {ticket.assigned_agent ? ticket.assigned_agent.name : 'Unassigned'}
                 </dd>
               </div>
               <div className="py-2.5 flex justify-between">
-                <dt className="text-slate-500">Category</dt>
-                <dd className="font-medium text-slate-900">{ticket.category.name}</dd>
+                <dt className="text-fg-subtle">Category</dt>
+                <dd className="font-medium text-fg">{ticket.category.name}</dd>
               </div>
               <div className="py-2.5 flex justify-between">
-                <dt className="text-slate-500">Created</dt>
-                <dd className="text-slate-700">{new Date(ticket.created_at).toLocaleString()}</dd>
+                <dt className="text-fg-subtle">Created</dt>
+                <dd className="text-fg-secondary">{new Date(ticket.created_at).toLocaleString()}</dd>
               </div>
               {ticket.resolved_at && (
                 <div className="py-2.5 flex justify-between">
-                  <dt className="text-slate-500">Resolved</dt>
-                  <dd className="text-slate-700">
+                  <dt className="text-fg-subtle">Resolved</dt>
+                  <dd className="text-fg-secondary">
                     {new Date(ticket.resolved_at).toLocaleString()}
                   </dd>
                 </div>
               )}
               {ticket.closed_at && (
                 <div className="py-2.5 flex justify-between">
-                  <dt className="text-slate-500">Closed</dt>
-                  <dd className="text-slate-700">{new Date(ticket.closed_at).toLocaleString()}</dd>
+                  <dt className="text-fg-subtle">Closed</dt>
+                  <dd className="text-fg-secondary">{new Date(ticket.closed_at).toLocaleString()}</dd>
                 </div>
               )}
             </dl>

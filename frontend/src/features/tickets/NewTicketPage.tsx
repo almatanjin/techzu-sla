@@ -85,22 +85,22 @@ export function NewTicketPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">New Ticket</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-2xl font-bold tracking-tight text-fg">New Ticket</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Open a support ticket for technical assistance or billing questions.
           </p>
         </div>
         <Link
           to="/tickets"
-          className="text-sm font-medium text-slate-600 hover:text-slate-900 hover:underline"
+          className="link-muted text-sm font-medium"
         >
           Cancel
         </Link>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="card p-6">
         {formError && (
-          <div role="alert" className="mb-6 rounded-md bg-rose-50 p-4 text-sm text-rose-800">
+          <div role="alert" className="mb-6 alert alert-danger">
             {formError}
           </div>
         )}
@@ -117,14 +117,14 @@ export function NewTicketPage() {
 
           {/* Category */}
           <div>
-            <label htmlFor="ticket-category" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="ticket-category" className="label">
               Category
             </label>
             <select
               id="ticket-category"
               disabled={loadingCategories}
               {...register('category_id', { required: 'Please select a category' })}
-              className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input"
             >
               <option value="">Select a category</option>
               {categories?.map((cat) => (
@@ -134,7 +134,7 @@ export function NewTicketPage() {
               ))}
             </select>
             {errors.category_id && (
-              <p role="alert" className="mt-1.5 text-xs text-rose-600">
+              <p role="alert" className="mt-1.5 text-xs text-danger">
                 {errors.category_id.message}
               </p>
             )}
@@ -143,13 +143,13 @@ export function NewTicketPage() {
           {/* Priority (staff only) */}
           {isStaff && (
             <div>
-              <label htmlFor="ticket-priority" className="block text-sm font-medium text-slate-700">
+              <label htmlFor="ticket-priority" className="label">
                 Priority
               </label>
               <select
                 id="ticket-priority"
                 {...register('priority')}
-                className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 input"
               >
                 {(['low', 'medium', 'high', 'critical'] as TicketPriority[]).map((p) => (
                   <option key={p} value={p}>
@@ -158,7 +158,7 @@ export function NewTicketPage() {
                 ))}
               </select>
               {errors.priority && (
-                <p role="alert" className="mt-1.5 text-xs text-rose-600">
+                <p role="alert" className="mt-1.5 text-xs text-danger">
                   {errors.priority.message}
                 </p>
               )}
@@ -167,7 +167,7 @@ export function NewTicketPage() {
 
           {/* Subject */}
           <div>
-            <label htmlFor="ticket-subject" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="ticket-subject" className="label">
               Subject
             </label>
             <input
@@ -176,10 +176,10 @@ export function NewTicketPage() {
               maxLength={200}
               placeholder="Brief summary of the issue"
               {...register('subject', { required: 'Subject is required' })}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input"
             />
             {errors.subject && (
-              <p role="alert" className="mt-1.5 text-xs text-rose-600">
+              <p role="alert" className="mt-1.5 text-xs text-danger">
                 {errors.subject.message}
               </p>
             )}
@@ -187,7 +187,7 @@ export function NewTicketPage() {
 
           {/* Description */}
           <div>
-            <label htmlFor="ticket-description" className="block text-sm font-medium text-slate-700">
+            <label htmlFor="ticket-description" className="label">
               Description
             </label>
             <textarea
@@ -196,10 +196,10 @@ export function NewTicketPage() {
               maxLength={10000}
               placeholder="Provide all relevant details to help us resolve the problem..."
               {...register('description', { required: 'Description is required' })}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input"
             />
             {errors.description && (
-              <p role="alert" className="mt-1.5 text-xs text-rose-600">
+              <p role="alert" className="mt-1.5 text-xs text-danger">
                 {errors.description.message}
               </p>
             )}
@@ -208,14 +208,14 @@ export function NewTicketPage() {
           <div className="flex justify-end gap-3 pt-2">
             <Link
               to="/tickets"
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              className="btn btn-outline"
             >
               Cancel
             </Link>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className="btn btn-primary"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
             </button>

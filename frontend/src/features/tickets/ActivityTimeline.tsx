@@ -24,19 +24,19 @@ export function ActivityTimeline({ ticketNumber }: Props) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold text-slate-900">Activity History</h2>
+      <h2 className="text-base font-semibold text-fg">Activity History</h2>
 
       {isLoading && (
-        <div className="p-4 text-center text-xs text-slate-500">Loading history...</div>
+        <div className="p-4 text-center text-xs text-fg-subtle">Loading history...</div>
       )}
 
       {isError && (
-        <div role="alert" className="rounded-md bg-rose-50 p-4 text-xs text-rose-800">
+        <div role="alert" className="alert alert-danger p-4 text-xs">
           <p>Failed to load activity history.</p>
           <button
             type="button"
             onClick={() => void refetch()}
-            className="mt-2 font-semibold text-rose-600 hover:underline"
+            className="mt-2 font-semibold text-danger hover:underline"
           >
             Retry
           </button>
@@ -46,11 +46,11 @@ export function ActivityTimeline({ ticketNumber }: Props) {
       {!isLoading && !isError && activities && (
         <>
           {activities.length === 0 ? (
-            <div className="p-4 text-center text-xs text-slate-500">
+            <div className="p-4 text-center text-xs text-fg-subtle">
               No activity history recorded yet.
             </div>
           ) : (
-            <ol className="relative ml-2 space-y-6 border-l border-slate-200 pl-4 text-sm">
+            <ol className="relative ml-2 space-y-6 border-l border-border pl-4 text-sm">
               {activities.map((activity) => {
                 const actorName = activity.actor?.name ?? 'System'
                 const sentence = describeActivity(activity)
@@ -58,17 +58,17 @@ export function ActivityTimeline({ ticketNumber }: Props) {
 
                 return (
                   <li key={activity.id} className="relative">
-                    <span className="absolute -left-6 top-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-blue-600 ring-4 ring-white" />
+                    <span className="absolute -left-6 top-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-accent ring-4 ring-surface" />
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <div className="font-medium text-slate-900">{actorName}</div>
+                      <div className="font-medium text-fg">{actorName}</div>
                       <time
                         dateTime={activity.created_at}
-                        className="text-xs text-slate-500"
+                        className="text-xs text-fg-subtle"
                       >
                         {formattedTime}
                       </time>
                     </div>
-                    <div className="mt-1 text-sm text-slate-700">{sentence}</div>
+                    <div className="mt-1 text-sm text-fg-secondary">{sentence}</div>
                   </li>
                 )
               })}

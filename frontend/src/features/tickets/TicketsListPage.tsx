@@ -11,27 +11,24 @@ import { listTickets } from './api'
 import type { PaginatedTicketsResponse, TicketPriority, TicketStatus, TicketView } from './types'
 
 export function TicketsListPage() {
-  const apiClient = useApiClient()
   const { user } = useAuth()
-  const isStaff = user?.role === 'agent' || user?.role === 'admin'
+  const apiClient = useApiClient()
+  const isStaff = user?.role === 'admin' || user?.role === 'agent'
   const { data: categories = [] } = useActiveCategories()
 
   const [searchParams, setSearchParams] = useSearchParams()
 
   const rawView = searchParams.get('view')
   const currentView: TicketView = rawView === 'closed' ? 'closed' : 'active'
-  const currentPage = Number(searchParams.get('page')) || 1
+
+  const searchFilter = searchParams.get('search') || ''
   const statusFilter = (searchParams.get('status') as TicketStatus | '') || ''
   const priorityFilter = (searchParams.get('priority') as TicketPriority | '') || ''
   const categoryFilter = searchParams.get('category_id') || ''
-  const searchFilter = searchParams.get('search') || ''
   const assignedFilter = searchParams.get('assigned') || ''
+  const currentPage = Number(searchParams.get('page')) || 1
 
   const [searchInput, setSearchInput] = useState(searchFilter)
-
-  const hasActiveFilters = Boolean(
-    statusFilter || priorityFilter || categoryFilter || searchFilter || assignedFilter,
-  )
 
   const { data, isLoading, isError, refetch } = useQuery<PaginatedTicketsResponse>({
     queryKey: [
@@ -58,11 +55,11 @@ export function TicketsListPage() {
       }),
   })
 
-  const updateFilter = (key: string, value: string) => {
+  const updateFilter = (key: string, value: string | number) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       if (value) {
-        next.set(key, value)
+        next.set(key, String(value))
       } else {
         next.delete(key)
       }
@@ -87,17 +84,17 @@ export function TicketsListPage() {
 
   const clearFilters = () => {
     setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      next.delete('status')
-      next.delete('priority')
-      next.delete('category_id')
-      next.delete('search')
-      next.delete('assigned')
-      next.delete('page')
+      const next = new URLSearchParams()
+      const v = prev.get('view')
+      if (v) next.set('view', v)
       return next
     })
     setSearchInput('')
   }
+
+  const hasActiveFilters = Boolean(
+    searchFilter || statusFilter || priorityFilter || categoryFilter || assignedFilter
+  )
 
   const handleTabChange = (view: TicketView) => {
     setSearchParams((prev) => {
@@ -133,31 +130,27 @@ export function TicketsListPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tickets</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-2xl font-bold tracking-tight text-fg">Tickets</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Track and manage customer support requests.
           </p>
         </div>
         <Link
           to="/tickets/new"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="btn btn-primary"
         >
           New Ticket
         </Link>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-border">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
           <button
             type="button"
             data-active={currentView === 'active'}
             onClick={() => handleTabChange('active')}
-            className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium ${
-              currentView === 'active'
-                ? 'border-blue-500 text-blue-600 font-semibold'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-            }`}
+            className={`tab ${currentView === 'active' ? 'tab-active' : ''}`.trim()}
           >
             Active
           </button>
@@ -165,11 +158,7 @@ export function TicketsListPage() {
             type="button"
             data-active={currentView === 'closed'}
             onClick={() => handleTabChange('closed')}
-            className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium ${
-              currentView === 'closed'
-                ? 'border-blue-500 text-blue-600 font-semibold'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-            }`}
+            className={`tab ${currentView === 'closed' ? 'tab-active' : ''}`.trim()}
           >
             Resolved & Closed
           </button>
@@ -177,11 +166,11 @@ export function TicketsListPage() {
       </div>
 
       {/* Filter controls */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+      <div className="card p-4 space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {/* Search */}
           <div>
-            <label htmlFor="search-tickets" className="block text-xs font-medium text-slate-700">
+            <label htmlFor="search-tickets" className="block text-xs font-medium text-fg-secondary">
               Search
             </label>
             <input
@@ -200,20 +189,20 @@ export function TicketsListPage() {
                 }
               }}
               placeholder="Subject or ticket #..."
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input input-sm"
             />
           </div>
 
           {/* Status */}
           <div>
-            <label htmlFor="filter-status" className="block text-xs font-medium text-slate-700">
+            <label htmlFor="filter-status" className="block text-xs font-medium text-fg-secondary">
               Status
             </label>
             <select
               id="filter-status"
               value={statusFilter}
               onChange={(e) => updateFilter('status', e.target.value)}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input input-sm"
             >
               <option value="">All Statuses</option>
               <option value="open">Open</option>
@@ -226,14 +215,14 @@ export function TicketsListPage() {
 
           {/* Priority */}
           <div>
-            <label htmlFor="filter-priority" className="block text-xs font-medium text-slate-700">
+            <label htmlFor="filter-priority" className="block text-xs font-medium text-fg-secondary">
               Priority
             </label>
             <select
               id="filter-priority"
               value={priorityFilter}
               onChange={(e) => updateFilter('priority', e.target.value)}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input input-sm"
             >
               <option value="">All Priorities</option>
               <option value="low">Low</option>
@@ -245,14 +234,14 @@ export function TicketsListPage() {
 
           {/* Category */}
           <div>
-            <label htmlFor="filter-category" className="block text-xs font-medium text-slate-700">
+            <label htmlFor="filter-category" className="block text-xs font-medium text-fg-secondary">
               Category
             </label>
             <select
               id="filter-category"
               value={categoryFilter}
               onChange={(e) => updateFilter('category_id', e.target.value)}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 input input-sm"
             >
               <option value="">All Categories</option>
               {categories.map((cat) => (
@@ -266,14 +255,14 @@ export function TicketsListPage() {
           {/* Assignment (staff only) */}
           {isStaff && (
             <div>
-              <label htmlFor="filter-assigned" className="block text-xs font-medium text-slate-700">
+              <label htmlFor="filter-assigned" className="block text-xs font-medium text-fg-secondary">
                 Assignment
               </label>
               <select
                 id="filter-assigned"
                 value={assignedFilter}
                 onChange={(e) => updateFilter('assigned', e.target.value)}
-                className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 input input-sm"
               >
                 <option value="">All Tickets</option>
                 <option value="me">Assigned to Me</option>
@@ -284,12 +273,12 @@ export function TicketsListPage() {
         </div>
 
         {hasActiveFilters && (
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-            <span className="text-slate-500">Filters applied</span>
+          <div className="flex items-center justify-between pt-2 border-t border-border-subtle text-xs">
+            <span className="text-fg-subtle">Filters applied</span>
             <button
               type="button"
               onClick={clearFilters}
-              className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
+              className="link font-medium"
             >
               Reset Filters
             </button>
@@ -299,18 +288,18 @@ export function TicketsListPage() {
 
       {/* Content states */}
       {isLoading && (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-500">
+        <div className="card p-12 text-center text-fg-subtle">
           Loading tickets...
         </div>
       )}
 
       {isError && (
-        <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-6 text-center text-rose-800">
+        <div role="alert" className="alert alert-danger p-6 text-center">
           <p>Failed to load tickets.</p>
           <button
             type="button"
             onClick={() => void refetch()}
-            className="mt-3 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-500"
+            className="mt-3 btn btn-danger btn-sm"
           >
             Retry
           </button>
@@ -318,15 +307,15 @@ export function TicketsListPage() {
       )}
 
       {!isLoading && !isError && data && (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden card">
           {data.data.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">No tickets found.</div>
+            <div className="p-12 text-center text-fg-subtle">No tickets found.</div>
           ) : (
             <>
               {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-700">
+                <table className="min-w-full divide-y divide-border text-left text-sm">
+                  <thead className="bg-surface-muted text-fg-secondary">
                     <tr>
                       <th className="px-6 py-3 font-semibold">Ticket</th>
                       <th className="px-6 py-3 font-semibold">Subject</th>
@@ -338,21 +327,21 @@ export function TicketsListPage() {
                       <th className="px-6 py-3 font-semibold">Created</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white text-slate-900">
+                  <tbody className="divide-y divide-border bg-surface text-fg">
                     {data.data.map((ticket) => (
-                      <tr key={ticket.ticket_number} className="hover:bg-slate-50">
+                      <tr key={ticket.ticket_number} className="hover:bg-surface-muted">
                         <td className="px-6 py-4 font-mono font-medium">
                           <Link
                             to={`/tickets/${ticket.ticket_number}`}
-                            className="text-blue-600 hover:text-blue-500 hover:underline"
+                            className="link"
                           >
                             {ticket.ticket_number}
                           </Link>
                         </td>
-                        <td className="px-6 py-4 font-medium text-slate-900 max-w-xs truncate">
+                        <td className="px-6 py-4 font-medium text-fg max-w-xs truncate">
                           <Link
                             to={`/tickets/${ticket.ticket_number}`}
-                            className="hover:text-blue-600 hover:underline"
+                            className="hover:text-accent hover:underline"
                           >
                             {ticket.subject}
                           </Link>
@@ -363,16 +352,16 @@ export function TicketsListPage() {
                         <td className="px-6 py-4">
                           <PriorityBadge priority={ticket.priority} />
                         </td>
-                        <td className="px-6 py-4 text-slate-600">{ticket.category.name}</td>
-                        <td className="px-6 py-4 text-slate-600">{ticket.customer.name}</td>
-                        <td className="px-6 py-4 text-slate-600">
+                        <td className="px-6 py-4 text-fg-muted">{ticket.category.name}</td>
+                        <td className="px-6 py-4 text-fg-muted">{ticket.customer.name}</td>
+                        <td className="px-6 py-4 text-fg-muted">
                           {ticket.assigned_agent ? (
                             ticket.assigned_agent.name
                           ) : (
-                            <span className="text-slate-400">Unassigned</span>
+                            <span className="text-fg-placeholder">Unassigned</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-slate-500 whitespace-nowrap">
+                        <td className="px-6 py-4 text-fg-subtle whitespace-nowrap">
                           {new Date(ticket.created_at).toLocaleDateString()}
                         </td>
                       </tr>
@@ -382,13 +371,13 @@ export function TicketsListPage() {
               </div>
 
               {/* Mobile cards view */}
-              <div className="divide-y divide-slate-200 md:hidden">
+              <div className="divide-y divide-border md:hidden">
                 {data.data.map((ticket) => (
                   <div key={ticket.ticket_number} className="space-y-2 p-4">
                     <div className="flex items-center justify-between gap-2">
                       <Link
                         to={`/tickets/${ticket.ticket_number}`}
-                        className="font-mono text-sm font-semibold text-blue-600 hover:underline"
+                        className="link font-mono text-sm font-semibold"
                       >
                         {ticket.ticket_number}
                       </Link>
@@ -400,12 +389,12 @@ export function TicketsListPage() {
                     <div>
                       <Link
                         to={`/tickets/${ticket.ticket_number}`}
-                        className="font-medium text-slate-900 hover:text-blue-600"
+                        className="font-medium text-fg hover:text-accent"
                       >
                         {ticket.subject}
                       </Link>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-subtle">
                       <span>Category: {ticket.category.name}</span>
                       <span>Customer: {ticket.customer.name}</span>
                       <span>
