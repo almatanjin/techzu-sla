@@ -64,5 +64,43 @@ describe('auth routing and guards', () => {
       screen.getByText(/You do not have permission to view this page/i),
     ).toBeInTheDocument()
   })
+
+  it('shows Tickets nav link to all authenticated users', async () => {
+    signIn({ role: 'customer' })
+    render(<Root />)
+
+    expect(await screen.findByRole('link', { name: 'Tickets' })).toBeInTheDocument()
+  })
+
+  it('shows Categories nav link to administrators and hides it from agents and customers', async () => {
+    signIn({ role: 'admin' })
+    const { unmount } = render(<Root />)
+
+    expect(await screen.findByRole('link', { name: 'Categories' })).toBeInTheDocument()
+    unmount()
+
+    signIn({ role: 'agent' })
+    const agentRender = render(<Root />)
+    expect(await agentRender.findByText('Connected')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Categories' })).not.toBeInTheDocument()
+    agentRender.unmount()
+
+    signIn({ role: 'customer' })
+    const customerRender = render(<Root />)
+    expect(await customerRender.findByText('Connected')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Categories' })).not.toBeInTheDocument()
+  })
+
+  it('shows Not authorized page when an agent accesses /admin/categories', async () => {
+    signIn({ role: 'agent' })
+    window.history.replaceState(null, '', '/admin/categories')
+
+    render(<Root />)
+
+    expect(await screen.findByRole('heading', { name: 'Not authorized' })).toBeInTheDocument()
+    expect(
+      screen.getByText(/You do not have permission to view this page/i),
+    ).toBeInTheDocument()
+  })
 })
 

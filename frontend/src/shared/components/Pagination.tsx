@@ -1,4 +1,4 @@
-import type { PaginationMeta } from '../../features/users/types'
+import type { PaginationMeta } from '../api/types'
 
 type Props = {
   meta: PaginationMeta

@@ -1,19 +1,13 @@
+import type { PaginationMeta } from '../../shared/api/types'
 import type { User, UserRole } from '../auth/types'
+
+export type { PaginationMeta }
 
 export type UserFilters = {
   role?: UserRole
   status?: 'active' | 'inactive'
   search?: string
   page?: number
-}
-
-export type PaginationMeta = {
-  current_page: number
-  from?: number | null
-  last_page: number
-  per_page: number
-  to?: number | null
-  total: number
 }
 
 export type PaginatedUsersResponse = {

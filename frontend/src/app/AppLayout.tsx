@@ -22,15 +22,33 @@ export function AppLayout() {
               >
                 Home
               </NavLink>
+              <NavLink
+                to="/tickets"
+                className={({ isActive }) =>
+                  isActive ? 'text-blue-600 font-semibold' : 'text-slate-600 hover:text-slate-900'
+                }
+              >
+                Tickets
+              </NavLink>
               {user?.role === 'admin' && (
-                <NavLink
-                  to="/admin/users"
-                  className={({ isActive }) =>
-                    isActive ? 'text-blue-600 font-semibold' : 'text-slate-600 hover:text-slate-900'
-                  }
-                >
-                  Users
-                </NavLink>
+                <>
+                  <NavLink
+                    to="/admin/categories"
+                    className={({ isActive }) =>
+                      isActive ? 'text-blue-600 font-semibold' : 'text-slate-600 hover:text-slate-900'
+                    }
+                  >
+                    Categories
+                  </NavLink>
+                  <NavLink
+                    to="/admin/users"
+                    className={({ isActive }) =>
+                      isActive ? 'text-blue-600 font-semibold' : 'text-slate-600 hover:text-slate-900'
+                    }
+                  >
+                    Users
+                  </NavLink>
+                </>
               )}
             </nav>
           </div>

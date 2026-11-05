@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useApiClient } from '../../shared/api/apiClientContext'
+import { Badge } from '../../shared/components/Badge'
 import { Pagination } from '../../shared/components/Pagination'
 import type { UserRole } from '../auth/types'
 import { listUsers } from './api'
@@ -203,28 +204,23 @@ export function UsersListPage() {
                         <td className="px-6 py-4 font-medium">{user.name}</td>
                         <td className="px-6 py-4 text-slate-600">{user.email}</td>
                         <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                          <Badge
+                            variant={
                               user.role === 'admin'
-                                ? 'bg-purple-100 text-purple-800'
+                                ? 'purple'
                                 : user.role === 'agent'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-slate-100 text-slate-800'
-                            }`}
+                                  ? 'blue'
+                                  : 'slate'
+                            }
+                            className="capitalize"
                           >
                             {user.role}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              user.is_active
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}
-                          >
+                          <Badge variant={user.is_active ? 'emerald' : 'rose'}>
                             {user.is_active ? 'Active' : 'Inactive'}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <Link
@@ -255,26 +251,21 @@ export function UsersListPage() {
                     </div>
                     <div className="text-sm text-slate-600">{user.email}</div>
                     <div className="flex items-center gap-2 pt-1">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+                      <Badge
+                        variant={
                           user.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800'
+                            ? 'purple'
                             : user.role === 'agent'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-slate-100 text-slate-800'
-                        }`}
+                              ? 'blue'
+                              : 'slate'
+                        }
+                        className="capitalize"
                       >
                         {user.role}
-                      </span>
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          user.is_active
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
+                      </Badge>
+                      <Badge variant={user.is_active ? 'emerald' : 'rose'}>
                         {user.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 ))}

@@ -7,6 +7,10 @@ import { RequireRole } from '../features/auth/guards/RequireRole'
 import { LoginPage } from '../features/auth/LoginPage'
 import { RegisterPage } from '../features/auth/RegisterPage'
 import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
+import { CategoriesPage } from '../features/categories/CategoriesPage'
+import { NewTicketPage } from '../features/tickets/NewTicketPage'
+import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
+import { TicketsListPage } from '../features/tickets/TicketsListPage'
 import { UserFormPage } from '../features/users/UserFormPage'
 import { UsersListPage } from '../features/users/UsersListPage'
 import { AppLayout } from './AppLayout'
@@ -37,9 +41,13 @@ export function createAppRouter() {
               element: <AppLayout />,
               children: [
                 { index: true, element: <HomePage /> },
+                { path: '/tickets', element: <TicketsListPage /> },
+                { path: '/tickets/new', element: <NewTicketPage /> },
+                { path: '/tickets/:ticketNumber', element: <TicketDetailPage /> },
                 {
                   element: <RequireRole role="admin" />,
                   children: [
+                    { path: '/admin/categories', element: <CategoriesPage /> },
                     { path: '/admin/users', element: <UsersListPage /> },
                     { path: '/admin/users/new', element: <UserFormPage /> },
                     { path: '/admin/users/:id/edit', element: <UserFormPage /> },
