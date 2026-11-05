@@ -26,7 +26,7 @@ export function BackendStatus() {
         type="button"
         onClick={() => void refetch()}
         disabled={isFetching}
-        className="rounded-md bg-red-700 px-3 py-1.5 text-white hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:opacity-60"
+        className="btn btn-danger btn-sm"
       >
         {isFetching ? 'Retrying…' : 'Retry'}
       </button>
@@ -37,15 +37,15 @@ export function BackendStatus() {
 type Tone = 'neutral' | 'success' | 'danger'
 
 const toneClasses: Record<Tone, string> = {
-  neutral: 'border-slate-200 bg-white text-slate-700',
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  danger: 'border-red-200 bg-red-50 text-red-800',
+  neutral: 'border-border bg-surface text-fg-secondary',
+  success: 'alert-success',
+  danger: 'alert-danger',
 }
 
 const dotClasses: Record<Tone, string> = {
-  neutral: 'bg-slate-400 animate-pulse',
-  success: 'bg-emerald-500',
-  danger: 'bg-red-500',
+  neutral: 'bg-neutral animate-pulse',
+  success: 'bg-success',
+  danger: 'bg-danger',
 }
 
 function StatusCard({ tone, children }: { tone: Tone; children: React.ReactNode }) {
