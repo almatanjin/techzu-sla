@@ -35,5 +35,8 @@ export type UpdateUserPayload = {
   role?: UserRole
   password?: string
   is_active?: boolean
+  is_available?: boolean
+  max_open_tickets?: number | null
+  category_ids?: number[]
 }
 

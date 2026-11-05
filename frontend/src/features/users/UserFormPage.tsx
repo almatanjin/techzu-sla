@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
 import { useApiClient } from '../../shared/api/apiClientContext'
 import { applyApiErrors } from '../../shared/api/applyApiErrors'
+import { AgentSettingsFields } from '../assignment/AgentSettingsFields'
 import { createUser, getUser, updateUser } from './api'
 
 const baseUserSchema = z.object({
@@ -14,6 +15,9 @@ const baseUserSchema = z.object({
   role: z.enum(['admin', 'agent', 'customer']),
   password: z.string().optional(),
   is_active: z.boolean(),
+  is_available: z.boolean().optional(),
+  max_open_tickets: z.union([z.string(), z.number(), z.null()]).optional(),
+  category_ids: z.array(z.number()).optional(),
 })
 
 type UserFormValues = z.infer<typeof baseUserSchema>
@@ -58,6 +62,8 @@ export function UserFormPage() {
     handleSubmit,
     reset,
     setError,
+    control,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<UserFormValues>({
     resolver: zodResolver(validationSchema),
@@ -67,8 +73,16 @@ export function UserFormPage() {
       role: 'customer',
       password: '',
       is_active: true,
+      is_available: true,
+      max_open_tickets: '',
+      category_ids: [],
     },
   })
+
+  const watchedRole = useWatch({ control, name: 'role' })
+  const isAvailable = useWatch({ control, name: 'is_available' }) ?? true
+  const maxOpenTickets = String(useWatch({ control, name: 'max_open_tickets' }) ?? '')
+  const categoryIds = (useWatch({ control, name: 'category_ids' }) as number[]) ?? []
 
   const { data: existingUser, isLoading: isLoadingUser } = useQuery({
     queryKey: ['admin', 'users', userId],
@@ -84,6 +98,13 @@ export function UserFormPage() {
         role: existingUser.role,
         password: '',
         is_active: existingUser.is_active,
+        is_available: existingUser.agent_settings?.is_available ?? true,
+        max_open_tickets:
+          existingUser.agent_settings?.max_open_tickets !== null &&
+          existingUser.agent_settings?.max_open_tickets !== undefined
+            ? String(existingUser.agent_settings.max_open_tickets)
+            : '',
+        category_ids: existingUser.agent_settings?.category_ids ?? [],
       })
     }
   }, [existingUser, reset])
@@ -98,6 +119,18 @@ export function UserFormPage() {
           role: values.role,
           is_active: values.is_active,
           ...(values.password ? { password: values.password } : {}),
+          ...(values.role === 'agent'
+            ? {
+                is_available: values.is_available ?? true,
+                max_open_tickets:
+                  values.max_open_tickets === '' ||
+                  values.max_open_tickets === null ||
+                  values.max_open_tickets === undefined
+                    ? null
+                    : Number(values.max_open_tickets),
+                category_ids: values.category_ids ?? [],
+              }
+            : {}),
         })
       } else {
         await createUser(apiClient, {
@@ -217,6 +250,17 @@ export function UserFormPage() {
             Active user account (can sign in)
           </label>
         </div>
+
+        {watchedRole === 'agent' && (
+          <AgentSettingsFields
+            isAvailable={isAvailable}
+            onIsAvailableChange={(val) => setValue('is_available', val, { shouldDirty: true })}
+            maxOpenTickets={maxOpenTickets}
+            onMaxOpenTicketsChange={(val) => setValue('max_open_tickets', val, { shouldDirty: true })}
+            categoryIds={categoryIds}
+            onCategoryIdsChange={(val) => setValue('category_ids', val, { shouldDirty: true })}
+          />
+        )}
 
         <div className="flex items-center justify-end gap-3 pt-4">
           <Link
