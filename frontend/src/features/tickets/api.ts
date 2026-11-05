@@ -34,6 +34,7 @@ export type ListTicketsOptions = {
   categoryId?: number | string
   search?: string
   assigned?: string
+  sla_status?: string
   page?: number
 }
 
@@ -59,6 +60,9 @@ export async function listTickets(
   }
   if (options.assigned) {
     params.set('assigned', options.assigned)
+  }
+  if (options.sla_status) {
+    params.set('sla_status', options.sla_status)
   }
   if (options.page && options.page > 1) {
     params.set('page', String(options.page))

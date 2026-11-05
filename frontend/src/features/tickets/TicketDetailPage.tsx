@@ -2,12 +2,15 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useApiClient } from '../../shared/api/apiClientContext'
+import { SlaBadge } from '../sla/SlaBadge'
+import { formatPolicyDuration } from '../sla/formatPolicyDuration'
 import { ActivityTimeline } from './ActivityTimeline'
 import { PriorityBadge } from './PriorityBadge'
 import { StatusBadge } from './StatusBadge'
 import { TicketEditForm } from './TicketEditForm'
 import { TicketStatusActions } from './TicketStatusActions'
 import { getTicket } from './api'
+import { priorityLabels } from './labels'
 import type { Ticket } from './types'
 
 export function TicketDetailPage() {
@@ -127,6 +130,38 @@ export function TicketDetailPage() {
                 onStatusChanged={() => setConflictMessage(null)}
                 onConflict={(_conflicted, msg) => setConflictMessage(msg)}
               />
+            </div>
+          )}
+
+          {/* SLA card */}
+          {ticket.sla && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-fg-subtle">
+                  SLA
+                </h3>
+                <SlaBadge status={ticket.sla.status} />
+              </div>
+              <dl className="divide-y divide-border-subtle text-sm">
+                <div className="py-2.5 flex justify-between">
+                  <dt className="text-fg-subtle">Due</dt>
+                  <dd className="font-medium text-fg">
+                    {new Date(ticket.sla.due_at).toLocaleString()}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex justify-between">
+                  <dt className="text-fg-subtle">Started</dt>
+                  <dd className="text-fg-secondary">
+                    {new Date(ticket.sla.started_at).toLocaleString()}
+                  </dd>
+                </div>
+                <div className="py-2.5 flex justify-between">
+                  <dt className="text-fg-subtle">Policy</dt>
+                  <dd className="text-fg-secondary">
+                    {`${priorityLabels[ticket.priority]}: ${formatPolicyDuration(ticket.sla.policy_minutes)}`}
+                  </dd>
+                </div>
+              </dl>
             </div>
           )}
 

@@ -5,6 +5,7 @@ import { useApiClient } from '../../shared/api/apiClientContext'
 import { Pagination } from '../../shared/components/Pagination'
 import { useAuth } from '../auth/useAuth'
 import { useActiveCategories } from '../categories/useActiveCategories'
+import { SlaBadge } from '../sla/SlaBadge'
 import { PriorityBadge } from './PriorityBadge'
 import { StatusBadge } from './StatusBadge'
 import { listTickets } from './api'
@@ -26,6 +27,7 @@ export function TicketsListPage() {
   const priorityFilter = (searchParams.get('priority') as TicketPriority | '') || ''
   const categoryFilter = searchParams.get('category_id') || ''
   const assignedFilter = searchParams.get('assigned') || ''
+  const slaStatusFilter = searchParams.get('sla_status') || ''
   const currentPage = Number(searchParams.get('page')) || 1
 
   const [searchInput, setSearchInput] = useState(searchFilter)
@@ -40,6 +42,7 @@ export function TicketsListPage() {
         categoryId: categoryFilter,
         search: searchFilter,
         assigned: assignedFilter,
+        slaStatus: slaStatusFilter,
         page: currentPage,
       },
     ],
@@ -51,6 +54,7 @@ export function TicketsListPage() {
         categoryId: categoryFilter || undefined,
         search: searchFilter || undefined,
         assigned: assignedFilter || undefined,
+        sla_status: slaStatusFilter || undefined,
         page: currentPage,
       }),
   })
@@ -93,7 +97,7 @@ export function TicketsListPage() {
   }
 
   const hasActiveFilters = Boolean(
-    searchFilter || statusFilter || priorityFilter || categoryFilter || assignedFilter
+    searchFilter || statusFilter || priorityFilter || categoryFilter || assignedFilter || slaStatusFilter
   )
 
   const handleTabChange = (view: TicketView) => {
@@ -270,6 +274,28 @@ export function TicketsListPage() {
               </select>
             </div>
           )}
+
+          {/* SLA Status (staff only) */}
+          {isStaff && (
+            <div>
+              <label htmlFor="filter-sla-status" className="block text-xs font-medium text-fg-secondary">
+                SLA Status
+              </label>
+              <select
+                id="filter-sla-status"
+                value={slaStatusFilter}
+                onChange={(e) => updateFilter('sla_status', e.target.value)}
+                className="mt-1 input input-sm"
+              >
+                <option value="">All SLA Statuses</option>
+                <option value="within">Within SLA</option>
+                <option value="approaching">Approaching</option>
+                <option value="breached">Breached</option>
+                <option value="met">Met</option>
+                <option value="missed">Missed</option>
+              </select>
+            </div>
+          )}
         </div>
 
         {hasActiveFilters && (
@@ -321,6 +347,9 @@ export function TicketsListPage() {
                       <th className="px-6 py-3 font-semibold">Subject</th>
                       <th className="px-6 py-3 font-semibold">Status</th>
                       <th className="px-6 py-3 font-semibold">Priority</th>
+                      {data.data.some((t) => Boolean(t.sla)) && (
+                        <th className="px-6 py-3 font-semibold">SLA</th>
+                      )}
                       <th className="px-6 py-3 font-semibold">Category</th>
                       <th className="px-6 py-3 font-semibold">Customer</th>
                       <th className="px-6 py-3 font-semibold">Assigned</th>
@@ -352,6 +381,18 @@ export function TicketsListPage() {
                         <td className="px-6 py-4">
                           <PriorityBadge priority={ticket.priority} />
                         </td>
+                        {data.data.some((t) => Boolean(t.sla)) && (
+                          <td className="px-6 py-4">
+                            {ticket.sla ? (
+                              <div className="space-y-1">
+                                <SlaBadge status={ticket.sla.status} />
+                                <div className="text-xs text-fg-subtle">
+                                  {new Date(ticket.sla.due_at).toLocaleString()}
+                                </div>
+                              </div>
+                            ) : null}
+                          </td>
+                        )}
                         <td className="px-6 py-4 text-fg-muted">{ticket.category.name}</td>
                         <td className="px-6 py-4 text-fg-muted">{ticket.customer.name}</td>
                         <td className="px-6 py-4 text-fg-muted">
@@ -403,6 +444,14 @@ export function TicketsListPage() {
                       </span>
                       <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
                     </div>
+                    {ticket.sla && (
+                      <div className="flex items-center gap-2 pt-1 text-xs">
+                        <SlaBadge status={ticket.sla.status} />
+                        <span className="text-fg-subtle">
+                          Due: {new Date(ticket.sla.due_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -226,5 +226,149 @@ describe('TicketDetailPage', () => {
     // Latest version is now shown in form
     expect(await screen.findByDisplayValue('Concurrent edit subject by other agent')).toBeInTheDocument()
   })
+
+  it('shows SLA panel with status, due time and policy duration for staff and hides it for customer', async () => {
+    const approachingTicket = {
+      ticket_number: 'TKT-2026-000010',
+      subject: 'Critical DB outage',
+      description: 'Outage details',
+      priority: 'critical',
+      status: 'open',
+      customer: { id: 1, name: 'Alice Customer', email: 'alice@example.com' },
+      created_by: { id: 1, name: 'Alice Customer' },
+      assigned_agent: null,
+      category: { id: 2, name: 'Technical' },
+      resolved_at: null,
+      closed_at: null,
+      lock_version: 1,
+      created_at: '2026-11-05T09:00:00Z',
+      updated_at: '2026-11-05T09:00:00Z',
+      permissions: {
+        can_edit_content: false,
+        can_edit_classification: true,
+        allowed_statuses: ['in_progress', 'closed'],
+      },
+      sla: {
+        status: 'approaching',
+        started_at: '2026-11-05T09:00:00Z',
+        warning_at: '2026-11-05T10:30:00Z',
+        due_at: '2026-11-05T11:00:00Z',
+        policy_minutes: 120,
+      },
+    }
+
+    server.use(
+      http.get('http://api.test/api/v1/tickets/TKT-2026-000010', () => {
+        return HttpResponse.json({ data: approachingTicket })
+      }),
+    )
+
+    // 1. Agent views approaching ticket
+    signIn({ role: 'agent' })
+    window.history.replaceState(null, '', '/tickets/TKT-2026-000010')
+    const { unmount } = render(<Root />)
+
+    expect(await screen.findByText('Critical DB outage')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'SLA' })).toBeInTheDocument()
+    expect(screen.getByText('Approaching')).toBeInTheDocument()
+    expect(screen.getByText(new Date('2026-11-05T11:00:00Z').toLocaleString())).toBeInTheDocument()
+    expect(screen.getByText('Critical: 2 business hours')).toBeInTheDocument()
+
+    unmount()
+
+    // 2. Customer views ticket without SLA
+    signIn({ role: 'customer' })
+    const customerTicket = { ...approachingTicket }
+    delete (customerTicket as Record<string, unknown>).sla
+
+    server.use(
+      http.get('http://api.test/api/v1/tickets/TKT-2026-000010', () => {
+        return HttpResponse.json({ data: customerTicket })
+      }),
+    )
+
+    window.history.replaceState(null, '', '/tickets/TKT-2026-000010')
+    render(<Root />)
+
+    expect(await screen.findByText('Critical DB outage')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'SLA' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Approaching')).not.toBeInTheDocument()
+  })
+
+  it('updates SLA due time in detail panel after priority change is saved', async () => {
+    signIn({ role: 'agent' })
+    const user = userEvent.setup()
+
+    const initialTicket = {
+      ticket_number: 'TKT-2026-000011',
+      subject: 'Performance slowdown',
+      description: 'Slowdown details',
+      priority: 'high',
+      status: 'open',
+      customer: { id: 1, name: 'Alice Customer', email: 'alice@example.com' },
+      created_by: { id: 1, name: 'Alice Customer' },
+      assigned_agent: null,
+      category: { id: 2, name: 'Technical' },
+      resolved_at: null,
+      closed_at: null,
+      lock_version: 1,
+      created_at: '2026-11-05T09:00:00Z',
+      updated_at: '2026-11-05T09:00:00Z',
+      permissions: {
+        can_edit_content: false,
+        can_edit_classification: true,
+        allowed_statuses: ['in_progress', 'closed'],
+      },
+      sla: {
+        status: 'within',
+        started_at: '2026-11-05T09:00:00Z',
+        warning_at: '2026-11-05T15:00:00Z',
+        due_at: '2026-11-05T17:00:00Z',
+        policy_minutes: 480,
+      },
+    }
+
+    const updatedTicket = {
+      ...initialTicket,
+      priority: 'critical',
+      lock_version: 2,
+      updated_at: '2026-11-05T09:30:00Z',
+      sla: {
+        status: 'approaching',
+        started_at: '2026-11-05T09:00:00Z',
+        warning_at: '2026-11-05T10:30:00Z',
+        due_at: '2026-11-05T11:00:00Z',
+        policy_minutes: 120,
+      },
+    }
+
+    let currentTicket = initialTicket
+
+    server.use(
+      http.get('http://api.test/api/v1/tickets/TKT-2026-000011', () => {
+        return HttpResponse.json({ data: currentTicket })
+      }),
+      http.patch('http://api.test/api/v1/tickets/TKT-2026-000011', () => {
+        currentTicket = updatedTicket
+        return HttpResponse.json({ data: updatedTicket })
+      }),
+    )
+
+    window.history.replaceState(null, '', '/tickets/TKT-2026-000011')
+    render(<Root />)
+
+    expect(await screen.findByText('Performance slowdown')).toBeInTheDocument()
+    expect(screen.getByText(new Date('2026-11-05T17:00:00Z').toLocaleString())).toBeInTheDocument()
+    expect(screen.getByText('High: 8 business hours')).toBeInTheDocument()
+
+    // Change priority to critical
+    await user.selectOptions(screen.getByLabelText('Priority'), 'critical')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    // Panel updates with new SLA due time and policy duration
+    expect(await screen.findByText('Critical: 2 business hours')).toBeInTheDocument()
+    expect(screen.getByText(new Date('2026-11-05T11:00:00Z').toLocaleString())).toBeInTheDocument()
+    expect(screen.getByText('Approaching')).toBeInTheDocument()
+  })
 })
 

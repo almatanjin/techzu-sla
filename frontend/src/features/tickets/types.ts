@@ -1,4 +1,5 @@
 import type { PaginationMeta } from '../../shared/api/types'
+import type { TicketSla } from '../sla/types'
 
 export type TicketStatus =
   | 'open'
@@ -42,6 +43,7 @@ export type TicketListItem = {
   assigned_agent: TicketAgent | null
   category: TicketCategory
   created_at: string
+  sla?: TicketSla
 }
 
 export type Ticket = {
@@ -60,6 +62,7 @@ export type Ticket = {
   created_at: string
   updated_at: string
   permissions: TicketPermissions
+  sla?: TicketSla
 }
 
 export type PaginatedTicketsResponse = {
