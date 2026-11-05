@@ -155,6 +155,7 @@ Database indexes optimize listing, searching, filtering, and SLA tracking:
 | `tickets_status_sla_due_at_index` | (`status`, `sla_due_at`) | SLA check background command, SLA due sorting |
 | `tickets_status_sla_warning_at_index` | (`status`, `sla_warning_at`) | SLA warning notifications |
 | `tickets_assigned_agent_id_status_index` | (`assigned_agent_id`, `status`) | Assignment filter (`assigned=me`, `assigned={id}`) |
+| `tickets_resolved_at_index` | (`resolved_at`) | Dashboard resolved counts |
 
 ##### Query plan: Default Active list
 
@@ -207,6 +208,12 @@ For deep pagination (such as page 100 and beyond), cursor pagination on `(create
 | `GET` | `/api/v1/admin/holidays` | Admin only | List holidays for a given year sorted by date |
 | `POST` | `/api/v1/admin/holidays` | Admin only | Add a new holiday date and name |
 | `DELETE` | `/api/v1/admin/holidays/{id}` | Admin only | Delete a holiday by ID |
+
+### Dashboard (`/api/v1/dashboard`)
+
+| Method | Endpoint | Access | Description |
+| ------ | -------- | ------ | ----------- |
+| `GET` | `/api/v1/dashboard` | Authenticated | Role-scoped operational dashboard metrics and recent tickets |
 
 ## SLA and business hours
 
@@ -429,6 +436,37 @@ docker compose exec app php artisan schedule:clear-cache
 ```
 
 - **Notification opt-out for future imports:** All ticket notification logic routes through `App\Listeners\SendTicketNotifications`, providing a single seam to disable notifications during batch data migrations or imports.
+
+## Dashboard
+
+The home page displays an operational dashboard tailored to each user's authenticated role.
+
+### Role-specific visibility
+
+- **Administrators**: See team counts (`open`, `unassigned`, `critical`, `sla_breached`, `sla_approaching`), resolution throughput (`resolved_today`, `resolved_last_7_days`), an interactive priority distribution bar, personal queue metrics (`open`, `sla_approaching`, `sla_breached`), and the full `Tickets by agent` workload table.
+The workload table lists all active support agents as well as any inactive agents holding open tickets.
+Each metric tile and table cell links directly to `/tickets` filtered by the corresponding criteria.
+- **Support Agents**: See the shared team operational counts, resolution throughput, priority distribution bar, and personal queue metrics.
+The agent workload table is omitted for non-admin staff.
+- **Customers**: See a simplified view focused entirely on their own tickets, including open, waiting for customer reply, and closed counts, followed by their 5 most recently updated tickets.
+All team metrics, agent assignments, and SLA deadlines are omitted from customer responses.
+
+### Caching and freshness
+
+The dashboard layer wraps data computation in `App\Dashboard\CachedDashboard` using Laravel's cache store with a 60-second time-to-live:
+- **Shared blocks**: Team operational metrics (`dashboard:team`) and agent workload data (`dashboard:by-agent`) are cached globally across all staff members.
+- **Personal blocks**: My queue metrics (`dashboard:my-queue:{id}`) and customer ticket summaries (`dashboard:customer:{id}`) are cached per user ID.
+- **Timestamp tracking**: Responses include a `generated_at` timestamp reflecting the oldest cached block used to assemble the response.
+- **Manual refresh**: Users can trigger the "Refresh" action on the dashboard to fetch the latest metrics on demand.
+
+### Query optimization and indexes
+
+The dashboard calculates metrics without hydrating Eloquent ticket models, executing constant query counts regardless of data volume:
+- Single-pass conditional aggregation (`SUM(CASE ... THEN 1 ELSE 0 END)`) groups active tickets by priority and SLA status in one query.
+- Administrative requests execute 5 total queries (authenticated user, business calendar, team aggregation, personal queue, and agent workload).
+- Customer requests execute 2 total queries (authenticated user and customer summary with recent tickets).
+- The `tickets_resolved_at_index` index optimizes resolution window counts across today and the past 7 days within the business timezone.
+- Composite indexes `tickets_status_priority_index`, `tickets_status_sla_due_at_index`, and `tickets_assigned_agent_id_status_index` ensure index coverage for active ticket filters.
 
 ## Environment variables
 
