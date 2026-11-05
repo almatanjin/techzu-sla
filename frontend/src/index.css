@@ -1,1 +1,221 @@
 @import "tailwindcss";
+
+/*
+  Global Theme Tokens
+  To change a brand or theme color, edit the variable values below.
+  Tokens can point to built-in Tailwind palette variables (e.g. var(--color-blue-600))
+  or literal values (e.g. #2563eb, oklch(...)).
+  Groups:
+  - Primary action: main call-to-action buttons
+  - Secondary action: secondary and dark buttons
+  - Accent: links, active tabs, timeline dots, and checkboxes
+  - Focus: focus rings and focused field borders
+  - Text: foreground text hierarchy (headings, body, muted, subtle, placeholder)
+  - Backgrounds: page canvas, cards/surface, muted surface
+  - Borders: cards/dividers, strong field borders, subtle inner dividers
+  - Text on tones: text color on solid tone backgrounds
+  - Status tones: neutral, info, success, warning, attention, danger, highlight
+*/
+@theme {
+  /* Primary action */
+  --color-primary: var(--color-blue-600);
+  --color-primary-hover: var(--color-blue-500);
+  --color-primary-active: var(--color-blue-700);
+  --color-on-primary: var(--color-white);
+
+  /* Secondary action */
+  --color-secondary: var(--color-slate-800);
+  --color-secondary-hover: var(--color-slate-700);
+  --color-secondary-active: var(--color-slate-900);
+  --color-on-secondary: var(--color-white);
+
+  /* Accent */
+  --color-accent: var(--color-blue-600);
+  --color-accent-hover: var(--color-blue-500);
+
+  /* Focus */
+  --color-focus: var(--color-blue-500);
+
+  /* Text */
+  --color-fg: var(--color-slate-900);
+  --color-fg-secondary: var(--color-slate-700);
+  --color-fg-muted: var(--color-slate-600);
+  --color-fg-subtle: var(--color-slate-500);
+  --color-fg-placeholder: var(--color-slate-400);
+
+  /* Backgrounds */
+  --color-canvas: var(--color-slate-50);
+  --color-surface: var(--color-white);
+  --color-surface-muted: var(--color-slate-50);
+
+  /* Borders */
+  --color-border: var(--color-slate-200);
+  --color-border-strong: var(--color-slate-300);
+  --color-border-subtle: var(--color-slate-100);
+
+  /* Text on tones */
+  --color-on-tone: var(--color-red);
+
+  /* Status tone: Neutral (slate) */
+  --color-neutral: var(--color-slate-500);
+  --color-neutral-hover: var(--color-slate-400);
+  --color-neutral-soft: var(--color-slate-100);
+  --color-neutral-subtle: var(--color-slate-50);
+  --color-neutral-border: var(--color-slate-200);
+  --color-neutral-fg: var(--color-slate-800);
+
+  /* Status tone: Info (blue) */
+  --color-info: var(--color-blue-600);
+  --color-info-hover: var(--color-blue-500);
+  --color-info-soft: var(--color-blue-100);
+  --color-info-subtle: var(--color-blue-50);
+  --color-info-border: var(--color-blue-200);
+  --color-info-fg: var(--color-blue-800);
+
+  /* Status tone: Success (emerald) */
+  --color-success: var(--color-emerald-600);
+  --color-success-hover: var(--color-emerald-500);
+  --color-success-soft: var(--color-emerald-100);
+  --color-success-subtle: var(--color-emerald-50);
+  --color-success-border: var(--color-emerald-200);
+  --color-success-fg: var(--color-emerald-800);
+
+  /* Status tone: Warning (amber) */
+  --color-warning: var(--color-amber-600);
+  --color-warning-hover: var(--color-amber-500);
+  --color-warning-soft: var(--color-amber-100);
+  --color-warning-subtle: var(--color-amber-50);
+  --color-warning-border: var(--color-amber-200);
+  --color-warning-fg: var(--color-amber-800);
+
+  /* Status tone: Attention (orange) */
+  --color-attention: var(--color-orange-600);
+  --color-attention-hover: var(--color-orange-500);
+  --color-attention-soft: var(--color-orange-100);
+  --color-attention-subtle: var(--color-orange-50);
+  --color-attention-border: var(--color-orange-200);
+  --color-attention-fg: var(--color-orange-800);
+
+  /* Status tone: Danger (rose) */
+  --color-danger: var(--color-rose-600);
+  --color-danger-hover: var(--color-rose-500);
+  --color-danger-soft: var(--color-rose-100);
+  --color-danger-subtle: var(--color-rose-50);
+  --color-danger-border: var(--color-rose-200);
+  --color-danger-fg: var(--color-rose-800);
+
+  /* Status tone: Highlight (purple) */
+  --color-highlight: var(--color-purple-600);
+  --color-highlight-hover: var(--color-purple-500);
+  --color-highlight-soft: var(--color-purple-100);
+  --color-highlight-subtle: var(--color-purple-50);
+  --color-highlight-border: var(--color-purple-200);
+  --color-highlight-fg: var(--color-purple-800);
+}
+
+@layer components {
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50 disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:cursor-not-allowed;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .btn-xs {
+    @apply px-2.5 py-1 text-xs;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-on-primary hover:bg-primary-hover active:bg-primary-active font-semibold shadow-sm;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-on-secondary hover:bg-secondary-hover active:bg-secondary-active font-semibold shadow-sm;
+  }
+
+  .btn-outline {
+    @apply border border-border-strong bg-surface text-fg-secondary hover:bg-surface-muted font-medium;
+  }
+
+  .btn-success {
+    @apply bg-success text-on-tone hover:bg-success-hover font-semibold shadow-sm;
+  }
+
+  .btn-warning {
+    @apply bg-warning text-on-tone hover:bg-warning-hover font-semibold shadow-sm;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-on-tone hover:bg-danger-hover font-semibold shadow-sm;
+  }
+
+  /* Form fields */
+  .input {
+    @apply block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-fg shadow-sm placeholder:text-fg-placeholder focus:border-focus focus:ring-1 focus:ring-focus focus:outline-none;
+  }
+
+  .input-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .checkbox {
+    @apply size-4 rounded border-border-strong text-accent accent-accent focus:ring-focus;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-fg-secondary;
+  }
+
+  /* Containers */
+  .card {
+    @apply rounded-lg border border-border bg-surface shadow-sm;
+  }
+
+  .alert {
+    @apply rounded-md border p-3 text-sm;
+  }
+
+  .alert-danger {
+    @apply border-danger-border bg-danger-subtle text-danger-fg;
+  }
+
+  .alert-warning {
+    @apply border-warning-border bg-warning-subtle text-warning-fg;
+  }
+
+  .alert-success {
+    @apply border-success-border bg-success-subtle text-success-fg;
+  }
+
+  .alert-info {
+    @apply border-info-border bg-info-subtle text-info-fg;
+  }
+
+  /* Links and navigation */
+  .link {
+    @apply text-accent hover:text-accent-hover hover:underline;
+  }
+
+  .link-muted {
+    @apply text-fg-subtle hover:text-fg-secondary hover:underline;
+  }
+
+  .nav-link {
+    @apply text-fg-muted hover:text-fg;
+
+    &[aria-current="page"] {
+      @apply text-accent font-semibold;
+    }
+  }
+
+  .tab {
+    @apply whitespace-nowrap border-b-2 border-transparent py-3 px-1 text-sm font-medium text-fg-subtle hover:border-border-strong hover:text-fg-secondary;
+  }
+
+  .tab-active {
+    @apply border-accent text-accent font-semibold;
+  }
+}
