@@ -2,6 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useApiClient } from '../../shared/api/apiClientContext'
+import { AssignmentCard } from '../assignment/AssignmentCard'
+import { AttachmentList } from '../conversation/AttachmentList'
+import { ConversationThread } from '../conversation/ConversationThread'
+import { MessageComposer } from '../conversation/MessageComposer'
 import { SlaBadge } from '../sla/SlaBadge'
 import { formatPolicyDuration } from '../sla/formatPolicyDuration'
 import { ActivityTimeline } from './ActivityTimeline'
@@ -91,7 +95,7 @@ export function TicketDetailPage() {
 
       {/* Main layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Left 2 cols: Content / Edit form + Timeline */}
+        {/* Left 2 cols: Content / Edit form + Conversation + Timeline */}
         <div className="space-y-6 lg:col-span-2">
           {isEditable ? (
             <div className="card p-6">
@@ -101,6 +105,14 @@ export function TicketDetailPage() {
                 onTicketUpdated={() => setConflictMessage(null)}
                 onConflict={(_conflicted, msg) => setConflictMessage(msg)}
               />
+              {ticket.attachments && ticket.attachments.length > 0 && (
+                <div className="border-t border-border-subtle pt-4 mt-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-2">
+                    Attachments
+                  </h3>
+                  <AttachmentList attachments={ticket.attachments} />
+                </div>
+              )}
             </div>
           ) : (
             <div className="card p-6">
@@ -108,8 +120,35 @@ export function TicketDetailPage() {
               <div className="whitespace-pre-wrap text-sm text-fg-secondary leading-relaxed border-t border-border-subtle pt-4">
                 {ticket.description}
               </div>
+              {ticket.attachments && ticket.attachments.length > 0 && (
+                <div className="border-t border-border-subtle pt-4 mt-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-2">
+                    Attachments
+                  </h3>
+                  <AttachmentList attachments={ticket.attachments} />
+                </div>
+              )}
             </div>
           )}
+
+          {/* Conversation */}
+          <div className="card p-6 space-y-6">
+            <h2 className="text-base font-semibold text-fg">Conversation</h2>
+            <ConversationThread ticketNumber={ticket.ticket_number} />
+
+            {ticket.permissions.can_reply ? (
+              <MessageComposer
+                ticketNumber={ticket.ticket_number}
+                canAddInternalNote={Boolean(ticket.permissions.can_add_internal_note)}
+              />
+            ) : (
+              ticket.status === 'closed' && (
+                <div className="rounded-lg border border-border-subtle bg-surface-subtle p-4 text-center text-xs text-fg-subtle">
+                  This ticket is closed. New messages cannot be added.
+                </div>
+              )
+            )}
+          </div>
 
           {/* Activity Timeline */}
           <div className="card p-6">
@@ -119,6 +158,13 @@ export function TicketDetailPage() {
 
         {/* Right col: Actions & Meta */}
         <div className="space-y-6">
+          {/* Assignment card */}
+          <AssignmentCard
+            ticket={ticket}
+            onTicketUpdated={() => setConflictMessage(null)}
+            onConflict={(_conflicted, msg) => setConflictMessage(msg)}
+          />
+
           {/* Status actions card */}
           {ticket.permissions.allowed_statuses.length > 0 && (
             <div className="card p-6">
@@ -140,9 +186,17 @@ export function TicketDetailPage() {
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-fg-subtle">
                   SLA
                 </h3>
-                <SlaBadge status={ticket.sla.status} />
+                <SlaBadge status={ticket.sla.status} escalated={Boolean(ticket.sla.escalated_at)} />
               </div>
               <dl className="divide-y divide-border-subtle text-sm">
+                {ticket.sla.escalated_at && (
+                  <div className="py-2.5 flex justify-between">
+                    <dt className="text-fg-subtle">Escalated at</dt>
+                    <dd className="font-medium text-fg">
+                      {new Date(ticket.sla.escalated_at).toLocaleString()}
+                    </dd>
+                  </div>
+                )}
                 <div className="py-2.5 flex justify-between">
                   <dt className="text-fg-subtle">Due</dt>
                   <dd className="font-medium text-fg">
@@ -181,12 +235,6 @@ export function TicketDetailPage() {
               <div className="py-2.5 flex justify-between">
                 <dt className="text-fg-subtle">Created by</dt>
                 <dd className="font-medium text-fg">{ticket.created_by.name}</dd>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <dt className="text-fg-subtle">Assigned</dt>
-                <dd className="font-medium text-fg">
-                  {ticket.assigned_agent ? ticket.assigned_agent.name : 'Unassigned'}
-                </dd>
               </div>
               <div className="py-2.5 flex justify-between">
                 <dt className="text-fg-subtle">Category</dt>

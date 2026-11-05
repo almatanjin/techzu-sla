@@ -1,8 +1,11 @@
+import axios from 'axios'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router'
 import { useApiClient } from '../../shared/api/apiClientContext'
 import { applyApiErrors } from '../../shared/api/applyApiErrors'
+import { validateAttachmentFiles } from '../../shared/attachments'
+import { FilePicker } from '../../shared/components/FilePicker'
 import { useAuth } from '../auth/useAuth'
 import { useActiveCategories } from '../categories/useActiveCategories'
 import { CustomerPicker } from './CustomerPicker'
@@ -27,6 +30,8 @@ export function NewTicketPage() {
   const { data: categories, isLoading: loadingCategories } = useActiveCategories()
   const [formError, setFormError] = useState<string | null>(null)
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [fileError, setFileError] = useState<string | null>(null)
 
   const {
     register,
@@ -62,11 +67,21 @@ export function NewTicketPage() {
       return
     }
 
+    const clientFileError = validateAttachmentFiles(files)
+    if (clientFileError) {
+      setFileError(clientFileError)
+      return
+    }
+
     const payload: CreateTicketPayload = {
       subject: values.subject.trim(),
       description: values.description.trim(),
       category_id: Number(values.category_id),
       priority: values.priority,
+    }
+
+    if (files.length > 0) {
+      payload.attachments = files
     }
 
     if (isStaff && selectedCustomerId) {
@@ -76,7 +91,15 @@ export function NewTicketPage() {
     try {
       const created = await createTicket(apiClient, payload)
       navigate(`/tickets/${created.ticket_number}`)
-    } catch (err) {
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const errData = err.response?.data as { errors?: Record<string, string[]> } | undefined
+        if (errData?.errors?.['attachments.0']) {
+          setFileError(errData.errors['attachments.0'][0])
+        } else if (errData?.errors?.['attachments']) {
+          setFileError(errData.errors['attachments'][0])
+        }
+      }
       applyApiErrors<FormValues>(err, setError, setFormError)
     }
   }
@@ -205,6 +228,23 @@ export function NewTicketPage() {
             )}
           </div>
 
+          {/* Attachments */}
+          <div>
+            <label className="label">Attachments</label>
+            <div className="mt-1">
+              <FilePicker
+                files={files}
+                onChange={(newFiles) => {
+                  setFiles(newFiles)
+                  const err = validateAttachmentFiles(newFiles)
+                  setFileError(err)
+                }}
+                error={fileError}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <Link
               to="/tickets"
@@ -214,7 +254,7 @@ export function NewTicketPage() {
             </Link>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || Boolean(fileError)}
               className="btn btn-primary"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Ticket'}

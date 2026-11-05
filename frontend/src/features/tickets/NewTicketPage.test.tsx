@@ -1,10 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Root } from '../../app/Root'
 import { server } from '../../test/server'
 import { signIn } from '../../test/signIn'
+import * as ticketsApi from './api'
 
 describe('NewTicketPage', () => {
   beforeEach(() => {
@@ -47,6 +48,13 @@ describe('NewTicketPage', () => {
       }),
       http.get('http://api.test/api/v1/tickets/TKT-2026-000099/activities', () => {
         return HttpResponse.json({ data: [] })
+      }),
+      http.get('http://api.test/api/v1/tickets/TKT-2026-000099/messages', () => {
+        return HttpResponse.json({
+          data: [],
+          meta: { next_cursor: null },
+          links: { next: null },
+        })
       }),
     )
   })
@@ -157,5 +165,84 @@ describe('NewTicketPage', () => {
     expect(
       await screen.findByText('The subject may not be greater than 200 characters.'),
     ).toBeInTheDocument()
+  })
+
+  it('submitting with screen.png sends FormData with fields and file, then opens new ticket', async () => {
+    signIn({ role: 'customer' })
+    const user = userEvent.setup()
+    const createTicketSpy = vi.spyOn(ticketsApi, 'createTicket')
+
+    server.use(
+      http.post('http://api.test/api/v1/tickets', () => {
+        return HttpResponse.json(
+          {
+            data: {
+              ticket_number: 'TKT-2026-000099',
+              subject: 'Screen glitch',
+              description: 'Happens on login page',
+              priority: 'medium',
+              status: 'open',
+              customer: { id: 1, name: 'Customer One', email: 'cust1@example.com' },
+              created_by: { id: 1, name: 'Customer One' },
+              assigned_agent: null,
+              category: { id: 1, name: 'Billing' },
+              resolved_at: null,
+              closed_at: null,
+              lock_version: 1,
+              created_at: '2026-11-05T12:00:00Z',
+              updated_at: '2026-11-05T12:00:00Z',
+              permissions: {
+                can_edit_content: true,
+                can_edit_classification: false,
+                allowed_statuses: ['closed'],
+                can_reply: true,
+                can_add_internal_note: false,
+              },
+              attachments: [
+                {
+                  id: 1,
+                  name: 'screen.png',
+                  mime_type: 'image/png',
+                  size_bytes: 1024,
+                  created_at: '2026-11-05T12:00:00Z',
+                },
+              ],
+            },
+          },
+          { status: 201 },
+        )
+      }),
+    )
+
+    window.history.replaceState(null, '', '/tickets/new')
+    render(<Root />)
+
+    expect(await screen.findByRole('heading', { name: 'New Ticket' })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: 'Billing' })).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Category'), '1')
+    await user.type(screen.getByLabelText('Subject'), 'Screen glitch')
+    await user.type(screen.getByLabelText('Description'), 'Happens on login page')
+
+    const file = new File(['a'.repeat(1024)], 'screen.png', { type: 'image/png' })
+    const fileInput = screen.getByTestId('file-picker-input')
+    await user.upload(fileInput, [file])
+
+    expect(screen.getByText('screen.png (1 KB)')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Submit Ticket' }))
+
+    // Opens the new ticket
+    expect(await screen.findByText('TKT-2026-000099')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/tickets/TKT-2026-000099')
+
+    // Verify spy call with attachments
+    expect(createTicketSpy).toHaveBeenCalled()
+    const callPayload = createTicketSpy.mock.calls[0][1]
+    expect(callPayload.subject).toBe('Screen glitch')
+    expect(callPayload.description).toBe('Happens on login page')
+    expect(callPayload.category_id).toBe(1)
+    expect(callPayload.attachments).toHaveLength(1)
+    expect(callPayload.attachments?.[0].name).toBe('screen.png')
   })
 })
