@@ -5,7 +5,18 @@ A support ticket system with SLA tracking, built as two separate applications:
 - `backend/` - Laravel 13 REST API (PHP 8.5, MySQL 9.7), served under `/api/v1`.
 - `frontend/` - React 19 single-page app (Vite 8, TypeScript 7, Tailwind CSS 4).
 
+Source code: https://github.com/almatanjin/techzu-sla
+
 The implementation plan lives in [PLAN.md](PLAN.md).
+
+## Contents
+
+- [Local setup](#local-setup)
+- [Database setup and migrations](#database-setup-and-migrations)
+- [Environment variables](#environment-variables)
+- [Queue and scheduler](#queue-and-scheduler)
+- [Tests and lint](#tests-and-lint)
+- [Architecture decisions and assumptions](#architecture-decisions-and-assumptions)
 
 ## Prerequisites
 
@@ -13,6 +24,16 @@ Docker Desktop (or Docker Engine with the Compose plugin) is the only requiremen
 PHP, Composer and Node run inside containers.
 
 ## Local setup
+
+Clone the repository:
+
+```bash
+git clone https://github.com/almatanjin/techzu-sla.git
+```
+
+```bash
+cd techzu-sla
+```
 
 Copy the example environment files (they hold local-only values):
 
@@ -72,6 +93,48 @@ All demo accounts share the password `Password123`.
 | `customer5@techzu-sla.test` | Customer | Fifth demo customer account |
 
 Seeding is idempotent and safely skips execution in production environments.
+
+## Database setup and migrations
+
+The database is MySQL 9.7, run by the `mysql` service in `docker-compose.yml`.
+The container creates the `techzu_sla` database and the `techzu` user on first start, so no manual `CREATE DATABASE` step is needed.
+The connection values in `backend/.env.example` (`DB_HOST=mysql`, `DB_DATABASE=techzu_sla`, `DB_USERNAME=techzu`, `DB_PASSWORD=secret`) already match that service.
+Data is kept in the `mysql-data` Docker volume between restarts.
+
+Create the tables:
+
+```bash
+docker compose exec app php artisan migrate
+```
+
+The migrations in `backend/database/migrations` create every table and index.
+They also insert the default SLA policies (one per priority) and the default Sunday to Thursday business hours, so the system works without the seeders.
+
+Load the demo data:
+
+```bash
+docker compose exec app php artisan db:seed
+```
+
+The seeders add the ticket categories, the demo accounts listed above, demo tickets across every status and SLA state, and sample conversations.
+Demo tickets are only created when the `tickets` table is empty.
+
+Check which migrations have run:
+
+```bash
+docker compose exec app php artisan migrate:status
+```
+
+Drop every table, migrate again and reseed:
+
+```bash
+docker compose exec app php artisan migrate:fresh --seed
+```
+
+Connect from the host with any MySQL client at `127.0.0.1:3306` using the same credentials (set `FORWARD_DB_PORT` to use another host port).
+
+The tests use a separate `mysql-test` service whose data lives in memory (`tmpfs`).
+`backend/phpunit.xml` forces the test connection to it, and the tests migrate it themselves, so it needs no setup.
 
 ## API Endpoints
 
@@ -628,13 +691,98 @@ The dashboard calculates metrics without hydrating Eloquent ticket models, execu
 
 ## Environment variables
 
-Key configuration settings in `backend/.env`:
+Both apps read a `.env` file copied from its `.env.example` during [Local setup](#local-setup).
+The example values work as they are with the Docker stack, so the only required step is `php artisan key:generate`, which fills `APP_KEY`.
 
-- `FRONTEND_URL`: Allowed CORS origin and base URL for email links (default: `http://localhost:5173`).
-- `SANCTUM_TOKEN_EXPIRATION`: Personal access token validity period in minutes (default: `10080` minutes / 7 days).
-- `TICKET_NUMBER_PREFIX`: Prefix for ticket numbers (default: `TKT`).
+Backend (`backend/.env`), grouped by purpose:
+
+| Variable | Example value | Purpose |
+| -------- | ------------- | ------- |
+| `APP_KEY` | generated | Encryption key, filled by `php artisan key:generate` |
+| `APP_URL` | `http://localhost:8000` | Public URL of the API |
+| `FRONTEND_URL` | `http://localhost:5173` | The only origin allowed by CORS, and the base URL for links in emails |
+| `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | `mysql`, `mysql`, `3306`, `techzu_sla`, `techzu`, `secret` | Development database, matching the `mysql` service |
+| `QUEUE_CONNECTION` | `database` | Queue driver for notifications and CSV import jobs |
+| `CACHE_STORE` | `database` | Cache for dashboard blocks and scheduler overlap locks |
+| `SESSION_DRIVER` | `array` | The API is stateless (Bearer tokens), so no server sessions |
+| `FILESYSTEM_DISK` | `local` | Private disk for attachments and import files |
+| `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT` | `smtp`, `mailpit`, `1025` | All local mail goes to Mailpit |
+| `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | `support@techzu-sla.test`, `${APP_NAME}` | Sender of notification emails |
+| `SANCTUM_TOKEN_EXPIRATION` | `10080` | Access token lifetime in minutes (7 days) |
+| `TICKET_NUMBER_PREFIX` | `TKT` | Prefix for ticket numbers |
+| `TICKETS_TIMEZONE` | `Asia/Dhaka` | Business timezone for ticket number years, business hours, dashboard days and CSV import times without an offset |
+
+Optional backend variables that are not in the example file:
+
 - `TICKET_NUMBER_PADDING`: Zero-padding width for sequential ticket numbers (default: `6`).
-- `TICKETS_TIMEZONE`: Business timezone for ticket number years, business hours, dashboard days and CSV import times without an offset (default: `Asia/Dhaka`).
+- `IMPORTS_DISK`: Storage disk for uploaded import files (default: `local`).
+- `IMPORTS_CHUNK_SIZE`: Rows per import chunk job (default: `500`).
+
+Frontend (`frontend/.env`):
+
+- `VITE_API_URL`: Base URL of the API including the version prefix (default: `http://localhost:8000/api/v1`).
+
+Docker Compose reads these from your shell or a root `.env` file (all optional):
+
+- `FORWARD_DB_PORT`: Host port for MySQL (default: `3306`).
+- `HOST_UID`, `HOST_GID`: User and group the PHP containers run as (default: `1000`).
+- `VITE_USE_POLLING`: Set to `true` when the frontend misses file change events.
+
+The tests do not read `backend/.env` for the database, mail or queue.
+`backend/phpunit.xml` sets them to the `mysql-test` database, the `array` mailer, and the `sync` queue.
+
+## Queue and scheduler
+
+Both are required: notifications are queued, CSV imports run as queue jobs, and SLA checks and assignment retries run on the scheduler.
+The Docker stack starts them automatically, so no extra setup is needed after [Local setup](#local-setup).
+
+The queue uses the `database` driver (`QUEUE_CONNECTION=database`), so it needs no Redis.
+The `jobs`, `job_batches` and `failed_jobs` tables come from the regular migrations.
+The `queue` container runs the worker:
+
+```bash
+php artisan queue:listen --tries=3 --timeout=60
+```
+
+`queue:listen` reloads the code for every job, so code edits apply without a restart.
+What runs on the queue:
+
+- Email notifications for ticket events and SLA warnings and breaches.
+- CSV imports: one scan job per upload, then a batch of chunk jobs (see [CSV import](#csv-import)).
+
+The `scheduler` container runs `php artisan schedule:work`, which runs these tasks from `backend/routes/console.php`:
+
+| Command | Frequency | Purpose |
+| ------- | --------- | ------- |
+| `tickets:check-sla` | Every minute, without overlapping | Sends SLA warnings, marks breaches and escalates them |
+| `tickets:assign-unassigned` | Every 5 minutes, without overlapping | Retries automatic assignment for tickets that never had an agent |
+| `sanctum:prune-expired --hours=24` | Daily | Deletes expired access tokens |
+
+Check that both are running:
+
+```bash
+docker compose ps queue scheduler
+```
+
+List the scheduled tasks and their next run times:
+
+```bash
+docker compose exec app php artisan schedule:list
+```
+
+Run a scheduled command once by hand:
+
+```bash
+docker compose exec app php artisan tickets:check-sla
+```
+
+Retry jobs that failed after 3 attempts:
+
+```bash
+docker compose exec app php artisan queue:retry all
+```
+
+Outside Docker, run `php artisan queue:work` under a process manager such as Supervisor, and add one cron entry that runs `php artisan schedule:run` every minute.
 
 ## Local services
 
@@ -687,6 +835,47 @@ Frontend lint and type check (Oxlint + `tsc`):
 ```bash
 docker compose exec frontend npm run lint
 ```
+
+## Architecture decisions and assumptions
+
+The full design, with the reasoning behind each choice, is in [PLAN.md](PLAN.md).
+The feature sections above describe the detailed rules.
+This section collects the main decisions and assumptions in one place.
+
+### Architecture
+
+- **Two separate apps:** a Laravel REST API and a React single-page app talk only over HTTP, so the API can serve other clients as well.
+All endpoints are versioned under `/api/v1`.
+- **Layered backend:** routes go through middleware, a FormRequest for validation, and a thin controller that calls a service class in `backend/app/Services`.
+Services hold the business rules and own the database transactions, and API Resources shape the responses per role.
+- **Token authentication:** Laravel Sanctum issues Bearer tokens that expire after 7 days.
+Tokens work across different frontend and API domains without shared cookies.
+Login, registration and password reset are rate limited.
+- **Three fixed roles:** `admin`, `agent` and `customer` live in a backed enum on `users.role`.
+Authorization uses Laravel Policies plus query scopes, so customers only ever see their own tickets and never see internal notes.
+A permissions package was not needed for three fixed roles.
+- **Events after commit:** ticket changes dispatch events once the transaction commits, and listeners send queued notifications.
+`App\Listeners\SendTicketNotifications` is the single place that decides who gets an email.
+- **Database drivers everywhere:** the queue, cache and scheduler locks all use MySQL, so the stack needs no Redis.
+- **Concurrency:** claiming a ticket is one conditional `UPDATE`, so only one of two simultaneous claims can succeed and the other gets HTTP 409.
+Ticket edits and admin reassignments use optimistic locking with a `lock_version` column.
+- **Indexes from real queries:** every index matches a list, search, dashboard or SLA query, and the query plans are shown in [Database indexes and query execution](#database-indexes-and-query-execution).
+- **Scalable CSV import:** a streaming scan pass and 500-row chunk jobs keep memory constant, and chunk records make retries safe.
+
+### Assumptions
+
+- **SLA scope:** the SLA measures time to resolution only, in business minutes, with a warning at 75% of the policy time.
+- **Business calendar:** one company-wide calendar in `Asia/Dhaka`, open Sunday to Thursday from 09:00 to 18:00, with admin-managed holidays.
+- **"48 hours" means business hours:** a Low ticket gets 48 business hours, about 5.3 working days.
+- **No SLA pause:** the clock keeps running while a ticket waits for the customer.
+- **Deadline snapshot:** deadlines are fixed when a ticket is created, so later policy or calendar edits only affect new tickets.
+Changing a ticket's priority recomputes its deadline from the original start time.
+- **Breach escalation:** a breached ticket is unassigned and the former assignee and all admins are notified, so anyone can pick it up.
+- **SLA is staff-only:** customers never see SLA data in the API or the UI.
+- **Assignment:** new tickets go to the least loaded available agent who handles the category, within each agent's ticket cap.
+- **Registration:** public sign-up creates customer accounts only; admins create agent and admin accounts.
+- **Imports are quiet:** imported tickets send no emails, stay unassigned, and historic breaches are marked without escalating.
+- **Local storage:** attachments and import files use the private local disk; remote object storage needs a shared seekable disk for imports (see [Remote object storage and worker hosts](#remote-object-storage-and-worker-hosts)).
 
 ## Everyday commands
 
