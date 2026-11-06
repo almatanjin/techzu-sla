@@ -6,7 +6,9 @@ use App\Models\Category;
 use App\Models\Ticket;
 use App\Models\TicketActivity;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Database\Seeders\CategorySeeder;
+use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\DemoTicketSeeder;
 use Database\Seeders\DemoUserSeeder;
 
@@ -76,9 +78,8 @@ it('is skipped when tickets already exist', function () {
     expect(Ticket::count())->toBe(1);
 });
 
-
 it('provides tickets in every sla status after running DatabaseSeeder', function () {
-    $this->seed(\Database\Seeders\DatabaseSeeder::class);
+    $this->seed(DatabaseSeeder::class);
 
     $admin = User::where('role', 'admin')->first();
     $token = $admin->createToken('admin')->plainTextToken;
@@ -94,3 +95,26 @@ it('provides tickets in every sla status after running DatabaseSeeder', function
         expect(count($items))->toBeGreaterThanOrEqual(1, "Expected at least one ticket with sla_status {$status}");
     }
 });
+
+dataset('seeding times', [
+    'Sunday 11:00, during business hours' => ['2026-11-08 11:00:00'],
+    'Friday 22:00, outside business hours' => ['2026-11-06 22:00:00'],
+]);
+
+it('seeds active tickets as a realistic mix of SLA states', function (string $localTime) {
+    $now = CarbonImmutable::parse($localTime, config('tickets.timezone'));
+    $this->travelTo($now);
+
+    $this->seed(DemoTicketSeeder::class);
+
+    $active = Ticket::whereIn('status', array_map(fn ($s) => $s->value, TicketStatus::active()))->get();
+    $counts = $active->countBy(fn (Ticket $ticket) => $ticket->slaStatus($now)->value);
+
+    expect($active)->not->toBeEmpty();
+    expect($counts->get('within', 0) / $active->count())->toBeGreaterThanOrEqual(0.4);
+    expect($counts->get('approaching', 0))->toBeGreaterThanOrEqual(2);
+    expect($counts->get('breached', 0) / $active->count())->toBeLessThan(0.5);
+
+    // No activity entry lies in the future
+    expect(TicketActivity::where('created_at', '>', $now)->count())->toBe(0);
+})->with('seeding times');

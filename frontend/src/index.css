@@ -15,6 +15,7 @@
   - Borders: cards/dividers, strong field borders, subtle inner dividers
   - Text on tones: text color on solid tone backgrounds
   - Status tones: neutral, info, success, warning, attention, danger, highlight
+  - Charts: series colors and SLA status colors for dashboard charts
 */
 @theme {
   /* Primary action */
@@ -111,6 +112,15 @@
   --color-highlight-subtle: var(--color-purple-50);
   --color-highlight-border: var(--color-purple-200);
   --color-highlight-fg: var(--color-purple-800);
+
+  /* Chart series: two categorical colors, checked for color-blind separation */
+  --color-chart-created: var(--color-indigo-600);
+  --color-chart-resolved: var(--color-teal-600);
+
+  /* Chart SLA status: within and met share a color, breached and missed share a color */
+  --color-sla-within: var(--color-emerald-600);
+  --color-sla-approaching: var(--color-amber-600);
+  --color-sla-breached: var(--color-rose-800);
 }
 
 @layer components {

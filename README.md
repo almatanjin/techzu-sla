@@ -155,7 +155,8 @@ Database indexes optimize listing, searching, filtering, and SLA tracking:
 | `tickets_status_sla_due_at_index` | (`status`, `sla_due_at`) | SLA check background command, SLA due sorting |
 | `tickets_status_sla_warning_at_index` | (`status`, `sla_warning_at`) | SLA warning notifications |
 | `tickets_assigned_agent_id_status_index` | (`assigned_agent_id`, `status`) | Assignment filter (`assigned=me`, `assigned={id}`) |
-| `tickets_resolved_at_index` | (`resolved_at`) | Dashboard resolved counts |
+| `tickets_resolved_at_index` | (`resolved_at`) | Dashboard resolved counts, daily resolved and SLA compliance series |
+| `tickets_closed_at_index` | (`closed_at`) | Dashboard daily SLA compliance for tickets closed without a resolution |
 
 ##### Query plan: Default Active list
 
@@ -213,7 +214,7 @@ For deep pagination (such as page 100 and beyond), cursor pagination on `(create
 
 | Method | Endpoint | Access | Description |
 | ------ | -------- | ------ | ----------- |
-| `GET` | `/api/v1/dashboard` | Authenticated | Role-scoped operational dashboard metrics and recent tickets |
+| `GET` | `/api/v1/dashboard` | Authenticated | Role-scoped operational dashboard metrics and recent tickets; staff also get a 14-day `daily` series |
 
 ### Ticket Imports (`/api/v1/admin/imports`)
 
@@ -568,19 +569,53 @@ The home page displays an operational dashboard tailored to each user's authenti
 
 ### Role-specific visibility
 
-- **Administrators**: See team counts (`open`, `unassigned`, `critical`, `sla_breached`, `sla_approaching`), resolution throughput (`resolved_today`, `resolved_last_7_days`), an interactive priority distribution bar, personal queue metrics (`open`, `sla_approaching`, `sla_breached`), and the full `Tickets by agent` workload table.
-The workload table lists all active support agents as well as any inactive agents holding open tickets.
+- **Administrators**: See team counts (`open`, `unassigned`, `critical`, `sla_within`, `sla_approaching`, `sla_breached`), resolution throughput (`resolved_today`, `resolved_last_7_days`), an interactive priority distribution bar, the `Workload by agent` chart, and the full `Tickets by agent` workload table.
+Admins have no `My queue` section and the API sends them no `my_queue`, because their own tickets appear in their row of the workload table.
+The workload table lists all active support agents as well as any inactive agents holding open tickets, each with `open`, `sla_within`, `sla_approaching` and `sla_breached` counts.
 Each metric tile and table cell links directly to `/tickets` filtered by the corresponding criteria.
-- **Support Agents**: See the shared team operational counts, resolution throughput, priority distribution bar, and personal queue metrics.
+- **Support Agents**: See the shared team operational counts, resolution throughput, priority distribution bar, and personal queue metrics (`my_queue`: `open`, `sla_approaching`, `sla_breached`).
 The agent workload table is omitted for non-admin staff.
 - **Customers**: See a simplified view focused entirely on their own tickets, including open, waiting for customer reply, and closed counts, followed by their 5 most recently updated tickets.
 All team metrics, agent assignments, and SLA deadlines are omitted from customer responses.
 
+### Charts
+
+Admins and agents see the charts below the tiles (and below "My queue" for agents), drawn with [Recharts](https://recharts.org) and loaded in their own chunk, so customers never download them.
+
+| Chart | Type | Who | Data |
+| ----- | ---- | --- | ---- |
+| Created vs resolved | Line | Admin, Agent | `daily.created` and `daily.resolved` for the last 14 days |
+| Daily SLA compliance | Stacked bars | Admin, Agent | `daily.sla_met` and `daily.sla_missed` for the last 14 days |
+| SLA health | Donut | Admin, Agent | `team.sla_within`, `sla_approaching` and `sla_breached`, with the active total in the center |
+| Workload by agent | Horizontal stacked bars | Admin | Each `by_agent` row's `sla_within`, `sla_approaching` and `sla_breached` |
+
+Every chart has a text legend and a hover tooltip, and the two daily charts have a "Show table" button with the same numbers.
+In "SLA health", every part above 0 takes at least 12 degrees of the ring, so a few within or approaching tickets stay visible next to many breached ones; the legend keeps the exact counts.
+The SLA health legend items link to `/tickets?sla_status=...`, and selecting a workload segment opens `/tickets?assigned={id}&sla_status=...`.
+Chart colors come from the `--color-chart-*` and `--color-sla-*` tokens in `frontend/src/index.css`, checked for color-blind separation.
+
+### Daily series
+
+Staff responses include `daily`: the last 14 calendar days in the business timezone (`TICKETS_TIMEZONE`, default `Asia/Dhaka`), oldest first and today last, with days that have no tickets filled with zeros.
+
+| Field | Meaning |
+| ----- | ------- |
+| `date` | The day, `YYYY-MM-DD` in the business timezone |
+| `created` | Tickets created that day |
+| `resolved` | Tickets whose resolution time falls on that day; a reopened ticket no longer counts |
+| `sla_met` | Tickets now resolved or closed, finished that day at or before their SLA due time |
+| `sla_missed` | Tickets now resolved or closed, finished that day after their SLA due time |
+
+A ticket's finish time is its resolution time, or its closing time when it was closed without a resolution.
+So a ticket closed without a resolution counts in `sla_met` or `sla_missed` and not in `resolved`.
+`team.resolved_today` is the last day's `resolved`, and `team.resolved_last_7_days` is the sum of the last 7 days' `resolved`.
+`sla_within`, `sla_approaching` and `sla_breached` always add up to `open`, in `team` and in each `by_agent` row.
+
 ### Caching and freshness
 
 The dashboard layer wraps data computation in `App\Dashboard\CachedDashboard` using Laravel's cache store with a 60-second time-to-live:
-- **Shared blocks**: Team operational metrics (`dashboard:team`) and agent workload data (`dashboard:by-agent`) are cached globally across all staff members.
-- **Personal blocks**: My queue metrics (`dashboard:my-queue:{id}`) and customer ticket summaries (`dashboard:customer:{id}`) are cached per user ID.
+- **Shared blocks**: Team operational metrics with the daily series (`dashboard:team:v2`) and agent workload data (`dashboard:by-agent:v2`) are cached globally across all staff members.
+- **Personal blocks**: An agent's queue metrics (`dashboard:my-queue:{id}`) and customer ticket summaries (`dashboard:customer:{id}`) are cached per user ID.
 - **Timestamp tracking**: Responses include a `generated_at` timestamp reflecting the oldest cached block used to assemble the response.
 - **Manual refresh**: Users can trigger the "Refresh" action on the dashboard to fetch the latest metrics on demand.
 
@@ -588,9 +623,11 @@ The dashboard layer wraps data computation in `App\Dashboard\CachedDashboard` us
 
 The dashboard calculates metrics without hydrating Eloquent ticket models, executing constant query counts regardless of data volume:
 - Single-pass conditional aggregation (`SUM(CASE ... THEN 1 ELSE 0 END)`) groups active tickets by priority and SLA status in one query.
-- Administrative requests execute 5 total queries (authenticated user, business calendar, team aggregation, personal queue, and agent workload).
-- Customer requests execute 2 total queries (authenticated user and customer summary with recent tickets).
-- The `tickets_resolved_at_index` index optimizes resolution window counts across today and the past 7 days within the business timezone.
+- An administrator's dashboard runs 5 queries: team aggregation, daily created, daily finished, agent workload counts, and the agent list.
+- An agent's dashboard runs 4 queries: team aggregation, daily created, daily finished, and the personal queue.
+- Day buckets come from UTC day bounds computed in PHP and a `CASE` expression in SQL, so they are exact in any timezone without MySQL timezone tables.
+- A customer's dashboard runs 2 queries: the summary counts and the 5 recent tickets.
+- The daily created query uses `tickets_created_at_index`. The daily finished query is a `UNION ALL` of a `tickets_resolved_at_index` range and a `tickets_closed_at_index` range, because MySQL does not merge the two indexes for an `OR`.
 - Composite indexes `tickets_status_priority_index`, `tickets_status_sla_due_at_index`, and `tickets_assigned_agent_id_status_index` ensure index coverage for active ticket filters.
 
 ## Environment variables

@@ -34,18 +34,21 @@ class DashboardController extends Controller
         }
 
         $teamBlock = $this->cachedDashboard->team($now);
-        $myQueueBlock = $this->cachedDashboard->myQueue($user, $now);
 
-        $computedAts = [
-            $teamBlock['computed_at'],
-            $myQueueBlock['computed_at'],
-        ];
+        $computedAts = [$teamBlock['computed_at']];
 
         $payload = [
             'team' => $teamBlock['team'],
-            'my_queue' => $myQueueBlock['my_queue'],
             'by_priority' => $teamBlock['by_priority'],
+            'daily' => $teamBlock['daily'],
         ];
+
+        // Admins see every holder's queue, their own included, in by_agent.
+        if (! $user->isAdmin()) {
+            $myQueueBlock = $this->cachedDashboard->myQueue($user, $now);
+            $computedAts[] = $myQueueBlock['computed_at'];
+            $payload['my_queue'] = $myQueueBlock['my_queue'];
+        }
 
         if ($user->isAdmin()) {
             $byAgentBlock = $this->cachedDashboard->byAgent($now);
@@ -58,4 +61,3 @@ class DashboardController extends Controller
         return new StaffDashboardResource($payload);
     }
 }
-

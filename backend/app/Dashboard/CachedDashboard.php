@@ -18,18 +18,20 @@ class CachedDashboard
      * @return array{
      *     computed_at: string,
      *     team: array<string, int>,
-     *     by_priority: list<array{priority: string, count: int}>
+     *     by_priority: list<array{priority: string, count: int}>,
+     *     daily: list<array<string, int|string>>
      * }
      */
     public function team(CarbonImmutable $now): array
     {
-        return Cache::remember('dashboard:team', self::TTL_SECONDS, function () use ($now) {
+        return Cache::remember('dashboard:team:v2', self::TTL_SECONDS, function () use ($now) {
             $data = $this->service->team($now);
 
             return [
                 'computed_at' => $now->toIso8601String(),
                 'team' => $data['team'],
                 'by_priority' => $data['by_priority'],
+                'daily' => $data['daily'],
             ];
         });
     }
@@ -55,12 +57,12 @@ class CachedDashboard
     /**
      * @return array{
      *     computed_at: string,
-     *     by_agent: list<array{id: int, name: string, is_active: bool, open: int, sla_approaching: int, sla_breached: int}>
+     *     by_agent: list<array{id: int, name: string, is_active: bool, open: int, sla_within: int, sla_approaching: int, sla_breached: int}>
      * }
      */
     public function byAgent(CarbonImmutable $now): array
     {
-        return Cache::remember('dashboard:by-agent', self::TTL_SECONDS, function () use ($now) {
+        return Cache::remember('dashboard:by-agent:v2', self::TTL_SECONDS, function () use ($now) {
             return [
                 'computed_at' => $now->toIso8601String(),
                 'by_agent' => $this->service->byAgent($now),
@@ -102,4 +104,3 @@ class CachedDashboard
         return $oldest ? $oldest->toIso8601String() : CarbonImmutable::now()->toIso8601String();
     }
 }
-

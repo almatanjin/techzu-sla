@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { Root } from '../../app/Root'
 import { server } from '../../test/server'
 import { signIn } from '../../test/signIn'
+import { agentRow, staffDashboard } from './testFixtures'
 
 describe('DashboardPage', () => {
   beforeEach(() => {
@@ -21,27 +22,21 @@ describe('DashboardPage', () => {
     server.use(
       http.get('http://api.test/api/v1/dashboard', () => {
         return HttpResponse.json({
+          ...staffDashboard({
+            team: {
+              open: 10,
+              unassigned: 2,
+              critical: 1,
+              sla_within: 3,
+              sla_breached: 4,
+              sla_approaching: 3,
+              resolved_today: 5,
+              resolved_last_7_days: 12,
+            },
+            my_queue: { open: 3, sla_approaching: 1, sla_breached: 0 },
+            by_priority: { critical: 1, high: 2, medium: 4, low: 3 },
+          }),
           generated_at: generatedAt,
-          team: {
-            open: 10,
-            unassigned: 2,
-            critical: 1,
-            sla_breached: 4,
-            sla_approaching: 3,
-            resolved_today: 5,
-            resolved_last_7_days: 12,
-          },
-          my_queue: {
-            open: 3,
-            sla_approaching: 1,
-            sla_breached: 0,
-          },
-          by_priority: [
-            { priority: 'critical', count: 1 },
-            { priority: 'high', count: 2 },
-            { priority: 'medium', count: 4 },
-            { priority: 'low', count: 3 },
-          ],
         })
       }),
     )
@@ -67,25 +62,12 @@ describe('DashboardPage', () => {
   it('renders priority bar with 50% segments and legend links for 2 Critical and 2 Low tickets', async () => {
     server.use(
       http.get('http://api.test/api/v1/dashboard', () => {
-        return HttpResponse.json({
-          generated_at: '2026-11-05T10:00:00Z',
-          team: {
-            open: 4,
-            unassigned: 0,
-            critical: 2,
-            sla_breached: 0,
-            sla_approaching: 0,
-            resolved_today: 0,
-            resolved_last_7_days: 0,
-          },
-          my_queue: { open: 0, sla_approaching: 0, sla_breached: 0 },
-          by_priority: [
-            { priority: 'critical', count: 2 },
-            { priority: 'high', count: 0 },
-            { priority: 'medium', count: 0 },
-            { priority: 'low', count: 2 },
-          ],
-        })
+        return HttpResponse.json(
+          staffDashboard({
+            team: { open: 4, critical: 2, sla_within: 4 },
+            by_priority: { critical: 2, low: 2 },
+          }),
+        )
       }),
     )
 
@@ -117,31 +99,14 @@ describe('DashboardPage', () => {
   it('renders "No active tickets." when all priority counts are zero', async () => {
     server.use(
       http.get('http://api.test/api/v1/dashboard', () => {
-        return HttpResponse.json({
-          generated_at: '2026-11-05T10:00:00Z',
-          team: {
-            open: 0,
-            unassigned: 0,
-            critical: 0,
-            sla_breached: 0,
-            sla_approaching: 0,
-            resolved_today: 0,
-            resolved_last_7_days: 0,
-          },
-          my_queue: { open: 0, sla_approaching: 0, sla_breached: 0 },
-          by_priority: [
-            { priority: 'critical', count: 0 },
-            { priority: 'high', count: 0 },
-            { priority: 'medium', count: 0 },
-            { priority: 'low', count: 0 },
-          ],
-        })
+        return HttpResponse.json(staffDashboard())
       }),
     )
 
     render(<Root />)
 
-    expect(await screen.findByText('No active tickets.')).toBeInTheDocument()
+    const prioritySection = await screen.findByRole('region', { name: 'Tickets by priority' })
+    expect(within(prioritySection).getByText('No active tickets.')).toBeInTheDocument()
   })
 
   it('shows Tickets by agent for Admin with inactive label and link, and hides table for Agent', async () => {
@@ -149,29 +114,15 @@ describe('DashboardPage', () => {
 
     server.use(
       http.get('http://api.test/api/v1/dashboard', () => {
-        return HttpResponse.json({
-          generated_at: '2026-11-05T10:00:00Z',
-          team: {
-            open: 3,
-            unassigned: 0,
-            critical: 0,
-            sla_breached: 1,
-            sla_approaching: 0,
-            resolved_today: 0,
-            resolved_last_7_days: 0,
-          },
-          my_queue: { open: 0, sla_approaching: 0, sla_breached: 0 },
-          by_priority: [
-            { priority: 'critical', count: 0 },
-            { priority: 'high', count: 0 },
-            { priority: 'medium', count: 0 },
-            { priority: 'low', count: 0 },
-          ],
-          by_agent: [
-            { id: 10, name: 'Mina', is_active: true, open: 2, sla_approaching: 0, sla_breached: 1 },
-            { id: 20, name: 'Sam', is_active: false, open: 1, sla_approaching: 0, sla_breached: 0 },
-          ],
-        })
+        return HttpResponse.json(
+          staffDashboard({
+            team: { open: 3, sla_within: 2, sla_breached: 1 },
+            by_agent: [
+              agentRow({ id: 10, name: 'Mina', open: 2, sla_within: 1, sla_breached: 1 }),
+              agentRow({ id: 20, name: 'Sam', is_active: false, open: 1, sla_within: 1 }),
+            ],
+          }),
+        )
       }),
     )
 
@@ -192,25 +143,7 @@ describe('DashboardPage', () => {
 
     server.use(
       http.get('http://api.test/api/v1/dashboard', () => {
-        return HttpResponse.json({
-          generated_at: '2026-11-05T10:00:00Z',
-          team: {
-            open: 0,
-            unassigned: 0,
-            critical: 0,
-            sla_breached: 0,
-            sla_approaching: 0,
-            resolved_today: 0,
-            resolved_last_7_days: 0,
-          },
-          my_queue: { open: 0, sla_approaching: 0, sla_breached: 0 },
-          by_priority: [
-            { priority: 'critical', count: 0 },
-            { priority: 'high', count: 0 },
-            { priority: 'medium', count: 0 },
-            { priority: 'low', count: 0 },
-          ],
-        })
+        return HttpResponse.json(staffDashboard())
       }),
     )
 
@@ -288,25 +221,8 @@ describe('DashboardPage', () => {
     server.use(
       http.get('http://api.test/api/v1/dashboard', () => {
         callCount++
-        return HttpResponse.json({
-          generated_at: '2026-11-05T10:00:00Z',
-          team: {
-            open: callCount === 1 ? 5 : 8,
-            unassigned: 0,
-            critical: 0,
-            sla_breached: 0,
-            sla_approaching: 0,
-            resolved_today: 0,
-            resolved_last_7_days: 0,
-          },
-          my_queue: { open: 0, sla_approaching: 0, sla_breached: 0 },
-          by_priority: [
-            { priority: 'critical', count: 0 },
-            { priority: 'high', count: 0 },
-            { priority: 'medium', count: 0 },
-            { priority: 'low', count: 0 },
-          ],
-        })
+        const open = callCount === 1 ? 5 : 8
+        return HttpResponse.json(staffDashboard({ team: { open, sla_within: open } }))
       }),
     )
 

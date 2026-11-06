@@ -2,8 +2,9 @@ export type TeamCounts = {
   open: number
   unassigned: number
   critical: number
-  sla_breached: number
+  sla_within: number
   sla_approaching: number
+  sla_breached: number
   resolved_today: number
   resolved_last_7_days: number
 }
@@ -24,15 +25,28 @@ export type AgentWorkload = {
   name: string
   is_active: boolean
   open: number
+  sla_within: number
   sla_approaching: number
   sla_breached: number
+}
+
+export type DailyActivity = {
+  /** Calendar day in the business timezone, `YYYY-MM-DD`. */
+  date: string
+  created: number
+  resolved: number
+  sla_met: number
+  sla_missed: number
 }
 
 export type StaffDashboard = {
   generated_at: string
   team: TeamCounts
-  my_queue: MyQueueCounts
+  /** Agents only; Admins see every holder's queue in `by_agent`. */
+  my_queue?: MyQueueCounts
   by_priority: PriorityCount[]
+  /** The last 14 business-timezone days, oldest first and today last. */
+  daily: DailyActivity[]
   by_agent?: AgentWorkload[]
 }
 

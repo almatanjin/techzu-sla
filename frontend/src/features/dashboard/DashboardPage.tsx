@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
+import { lazy, Suspense } from 'react'
 import { useApiClient } from '../../shared/api/apiClientContext'
-import { AgentWorkloadTable } from './AgentWorkloadTable'
 import { fetchDashboard } from './api'
 import { CustomerSummary } from './CustomerSummary'
-import { PriorityBar } from './PriorityBar'
 import { StatTile } from './StatTile'
 import { isStaffDashboard, type DashboardResponse } from './types'
+
+// Recharts is only needed by staff, so the charts load in their own chunk.
+const StaffCharts = lazy(() => import('./charts/StaffCharts'))
 
 export function DashboardPage() {
   const client = useApiClient()
@@ -97,30 +99,38 @@ export function DashboardPage() {
             </div>
           </section>
 
-          <section aria-labelledby="queue-heading" className="space-y-3">
-            <h2 id="queue-heading" className="text-lg font-semibold">
-              My queue
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <StatTile label="My open" value={data.my_queue.open} to="/tickets?assigned=me" />
-              <StatTile
-                label="SLA approaching"
-                value={data.my_queue.sla_approaching}
-                to="/tickets?assigned=me&sla_status=approaching"
-                tone={data.my_queue.sla_approaching > 0 ? 'attention' : 'neutral'}
-              />
-              <StatTile
-                label="SLA breached"
-                value={data.my_queue.sla_breached}
-                to="/tickets?assigned=me&sla_status=breached"
-                tone={data.my_queue.sla_breached > 0 ? 'danger' : 'neutral'}
-              />
-            </div>
-          </section>
+          {data.my_queue ? (
+            <section aria-labelledby="queue-heading" className="space-y-3">
+              <h2 id="queue-heading" className="text-lg font-semibold">
+                My queue
+              </h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <StatTile label="My open" value={data.my_queue.open} to="/tickets?assigned=me" />
+                <StatTile
+                  label="SLA approaching"
+                  value={data.my_queue.sla_approaching}
+                  to="/tickets?assigned=me&sla_status=approaching"
+                  tone={data.my_queue.sla_approaching > 0 ? 'attention' : 'neutral'}
+                />
+                <StatTile
+                  label="SLA breached"
+                  value={data.my_queue.sla_breached}
+                  to="/tickets?assigned=me&sla_status=breached"
+                  tone={data.my_queue.sla_breached > 0 ? 'danger' : 'neutral'}
+                />
+              </div>
+            </section>
+          ) : null}
 
-          <PriorityBar priorities={data.by_priority} />
-
-          {data.by_agent ? <AgentWorkloadTable agents={data.by_agent} /> : null}
+          <Suspense
+            fallback={
+              <div className="py-8 text-center text-sm text-fg-muted" role="status">
+                Loading charts…
+              </div>
+            }
+          >
+            <StaffCharts data={data} />
+          </Suspense>
         </>
       ) : (
         <CustomerSummary data={data} />

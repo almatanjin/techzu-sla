@@ -51,6 +51,15 @@ export const REQUIRED_TOKENS = [
     `--color-${tone}-border`,
     `--color-${tone}-fg`,
   ]),
+
+  // Chart series
+  '--color-chart-created',
+  '--color-chart-resolved',
+
+  // Chart SLA status (within and met share one color, breached and missed another)
+  '--color-sla-within',
+  '--color-sla-approaching',
+  '--color-sla-breached',
 ]
 
 describe('Design System - Tokens', () => {

@@ -27,6 +27,10 @@ class StaffDashboardResource extends JsonResource
             $payload['by_priority'] = $this->resource['by_priority'];
         }
 
+        if (array_key_exists('daily', $this->resource)) {
+            $payload['daily'] = $this->resource['daily'];
+        }
+
         if (array_key_exists('by_agent', $this->resource)) {
             $payload['by_agent'] = $this->resource['by_agent'];
         }
@@ -34,4 +38,3 @@ class StaffDashboardResource extends JsonResource
         return $payload;
     }
 }
-

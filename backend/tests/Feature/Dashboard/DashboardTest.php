@@ -1,10 +1,13 @@
 <?php
 
+use App\Dashboard\DashboardService;
 use App\Enums\TicketPriority;
+use App\Enums\TicketStatus;
 use App\Models\Category;
 use App\Models\Ticket;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Database\Seeders\DatabaseSeeder;
 
 beforeEach(function () {
     $this->category = Category::factory()->create();
@@ -63,7 +66,59 @@ test('tracer: agent dashboard returns team counts and generated_at for mixed tic
     $response->assertJsonPath('team.critical', 1);
     $response->assertJsonPath('team.sla_breached', 1);
     $response->assertJsonPath('team.sla_approaching', 1);
+    $response->assertJsonPath('team.sla_within', 1);
     expect($response->json('generated_at'))->not->toBeNull();
+});
+
+test('team sla_within, sla_approaching and sla_breached add up to open, with the warning and due times as boundaries', function () {
+    $now = CarbonImmutable::parse('2026-11-05 10:00:00', 'UTC');
+    CarbonImmutable::setTestNow($now);
+
+    $agent = User::factory()->agent()->create();
+
+    // Warning time exactly now: approaching
+    Ticket::factory()->open()->create([
+        'category_id' => $this->category->id,
+        'sla_warning_at' => $now,
+        'sla_due_at' => $now->addHour(),
+    ]);
+    // Due time exactly now: breached
+    Ticket::factory()->open()->create([
+        'category_id' => $this->category->id,
+        'sla_warning_at' => $now->subHour(),
+        'sla_due_at' => $now,
+    ]);
+    // Warning one second from now: within
+    Ticket::factory()->open()->create([
+        'category_id' => $this->category->id,
+        'status' => TicketStatus::WaitingForCustomer,
+        'sla_warning_at' => $now->addSecond(),
+        'sla_due_at' => $now->addHour(),
+    ]);
+    Ticket::factory()->open()->create([
+        'category_id' => $this->category->id,
+        'status' => TicketStatus::InProgress,
+        'sla_warning_at' => $now->addHours(3),
+        'sla_due_at' => $now->addHours(4),
+    ]);
+    // A closed ticket with a future warning time is not counted
+    Ticket::factory()->create([
+        'category_id' => $this->category->id,
+        'status' => TicketStatus::Closed,
+        'closed_at' => $now->subHour(),
+        'sla_warning_at' => $now->addHours(3),
+        'sla_due_at' => $now->addHours(4),
+    ]);
+
+    $token = $agent->createToken('test')->plainTextToken;
+
+    $team = $this->withToken($token)->getJson('/api/v1/dashboard')->assertOk()->json('team');
+
+    expect($team['open'])->toBe(4);
+    expect($team['sla_within'])->toBe(2);
+    expect($team['sla_approaching'])->toBe(1);
+    expect($team['sla_breached'])->toBe(1);
+    expect($team['sla_within'] + $team['sla_approaching'] + $team['sla_breached'])->toBe($team['open']);
 });
 
 test('by_priority lists active counts in order critical, high, medium, low', function () {
@@ -145,7 +200,7 @@ test('a ticket resolved today then closed counts in resolved_today, and a reopen
     // Resolved today then closed an hour later
     Ticket::factory()->create([
         'category_id' => $this->category->id,
-        'status' => \App\Enums\TicketStatus::Closed,
+        'status' => TicketStatus::Closed,
         'resolved_at' => CarbonImmutable::parse('2026-11-05 08:00:00', $tz)->setTimezone('UTC'),
         'closed_at' => CarbonImmutable::parse('2026-11-05 09:00:00', $tz)->setTimezone('UTC'),
     ]);
@@ -265,6 +320,7 @@ test('admin dashboard lists by_agent workload table sorted by name with active a
     $response->assertOk();
     $byAgent = $response->json('by_agent');
     expect($byAgent)->toBeArray();
+    expect(array_keys($response->json()))->toEqualCanonicalizing(['generated_at', 'team', 'by_priority', 'daily', 'by_agent']);
 
     // Sorted by name: Admin Boss, Mina, Rafi, Sam
     expect(array_column($byAgent, 'name'))->toBe(['Admin Boss', 'Mina', 'Rafi', 'Sam']);
@@ -275,6 +331,7 @@ test('admin dashboard lists by_agent workload table sorted by name with active a
         'name' => 'Admin Boss',
         'is_active' => true,
         'open' => 1,
+        'sla_within' => 1,
         'sla_approaching' => 0,
         'sla_breached' => 0,
     ]);
@@ -285,6 +342,7 @@ test('admin dashboard lists by_agent workload table sorted by name with active a
         'name' => 'Mina',
         'is_active' => true,
         'open' => 2,
+        'sla_within' => 1,
         'sla_approaching' => 0,
         'sla_breached' => 1,
     ]);
@@ -295,6 +353,7 @@ test('admin dashboard lists by_agent workload table sorted by name with active a
         'name' => 'Rafi',
         'is_active' => true,
         'open' => 0,
+        'sla_within' => 0,
         'sla_approaching' => 0,
         'sla_breached' => 0,
     ]);
@@ -305,9 +364,26 @@ test('admin dashboard lists by_agent workload table sorted by name with active a
         'name' => 'Sam',
         'is_active' => false,
         'open' => 1,
+        'sla_within' => 1,
         'sla_approaching' => 0,
         'sla_breached' => 0,
     ]);
+});
+
+test('an admin gets no my_queue and finds their own tickets in by_agent', function () {
+    $admin = User::factory()->admin()->create(['name' => 'Admin Boss']);
+
+    Ticket::factory()->open()->create([
+        'category_id' => $this->category->id,
+        'assigned_agent_id' => $admin->id,
+    ]);
+
+    $response = $this->withToken($admin->createToken('test')->plainTextToken)
+        ->getJson('/api/v1/dashboard')
+        ->assertOk();
+
+    $response->assertJsonMissingPath('my_queue');
+    expect(collect($response->json('by_agent'))->firstWhere('id', $admin->id)['open'])->toBe(1);
 });
 
 test('by_agent lists agent with only a resolved ticket with open 0', function () {
@@ -343,6 +419,8 @@ test("an agent's response has no by_agent key", function () {
 
     $response->assertOk();
     $response->assertJsonMissingPath('by_agent');
+    expect(array_keys($response->json()))->toEqualCanonicalizing(['generated_at', 'team', 'my_queue', 'by_priority', 'daily']);
+    expect($response->json('daily'))->toHaveCount(14);
 });
 
 test('customer dashboard returns summary with own tickets only', function () {
@@ -361,7 +439,7 @@ test('customer dashboard returns summary with own tickets only', function () {
     Ticket::factory()->create([
         'category_id' => $this->category->id,
         'customer_id' => $ana->id,
-        'status' => \App\Enums\TicketStatus::Closed,
+        'status' => TicketStatus::Closed,
         'closed_at' => now(),
     ]);
 
@@ -429,6 +507,7 @@ test('customer dashboard returns 5 most recently updated tickets with exact keys
     $response->assertJsonMissingPath('my_queue');
     $response->assertJsonMissingPath('by_priority');
     $response->assertJsonMissingPath('by_agent');
+    $response->assertJsonMissingPath('daily');
 
     // JSON contains no sla or assigned_agent keys anywhere
     $jsonString = $response->getContent();
@@ -440,7 +519,7 @@ describe('counts match ticket list on seeded demo data', function () {
     dataset('roles', ['admin', 'agent']);
 
     test('tile counts match ticket list meta.total', function (string $role) {
-        $this->seed(\Database\Seeders\DatabaseSeeder::class);
+        $this->seed(DatabaseSeeder::class);
 
         $user = $role === 'admin'
             ? User::where('email', 'admin@techzu-sla.test')->firstOrFail()
@@ -458,18 +537,33 @@ describe('counts match ticket list on seeded demo data', function () {
             [$dashboard['team']['critical'], '/api/v1/tickets?priority=critical'],
             [$dashboard['team']['sla_breached'], '/api/v1/tickets?sla_status=breached'],
             [$dashboard['team']['sla_approaching'], '/api/v1/tickets?sla_status=approaching'],
-            [$dashboard['my_queue']['open'], '/api/v1/tickets?assigned=me'],
-            [$dashboard['my_queue']['sla_approaching'], '/api/v1/tickets?assigned=me&sla_status=approaching'],
-            [$dashboard['my_queue']['sla_breached'], '/api/v1/tickets?assigned=me&sla_status=breached'],
+            [$dashboard['team']['sla_within'], '/api/v1/tickets?sla_status=within'],
         ];
+
+        if ($role === 'agent') {
+            $checks[] = [$dashboard['my_queue']['open'], '/api/v1/tickets?assigned=me'];
+            $checks[] = [$dashboard['my_queue']['sla_approaching'], '/api/v1/tickets?assigned=me&sla_status=approaching'];
+            $checks[] = [$dashboard['my_queue']['sla_breached'], '/api/v1/tickets?assigned=me&sla_status=breached'];
+        } else {
+            expect($dashboard)->not->toHaveKey('my_queue');
+        }
 
         foreach ($dashboard['by_priority'] as $p) {
             $checks[] = [$p['count'], "/api/v1/tickets?priority={$p['priority']}"];
         }
 
-        if ($role === 'admin' && ! empty($dashboard['by_agent'])) {
-            $agentRow = $dashboard['by_agent'][0];
-            $checks[] = [$agentRow['open'], "/api/v1/tickets?assigned={$agentRow['id']}"];
+        expect($dashboard['team']['sla_within'])->toBeGreaterThan(0);
+
+        if ($role === 'admin') {
+            expect($dashboard['by_agent'])->not->toBeEmpty();
+            expect(collect($dashboard['by_agent'])->sum('open'))->toBeGreaterThan(0);
+
+            foreach ($dashboard['by_agent'] as $agentRow) {
+                $checks[] = [$agentRow['open'], "/api/v1/tickets?assigned={$agentRow['id']}"];
+                foreach (['within', 'approaching', 'breached'] as $part) {
+                    $checks[] = [$agentRow["sla_{$part}"], "/api/v1/tickets?assigned={$agentRow['id']}&sla_status={$part}"];
+                }
+            }
         }
 
         foreach ($checks as [$expectedCount, $url]) {
@@ -482,7 +576,7 @@ describe('counts match ticket list on seeded demo data', function () {
 
 describe('constant query counts', function () {
     test('admin dashboard runs in 5 queries on small dataset', function () {
-        $service = app(\App\Dashboard\DashboardService::class);
+        $service = app(DashboardService::class);
         $now = CarbonImmutable::parse('2026-11-05 10:00:00', 'UTC');
 
         $admin = User::factory()->admin()->create();
@@ -503,12 +597,11 @@ describe('constant query counts', function () {
 
         $this->expectsDatabaseQueryCount(5);
         $service->team($now);
-        $service->myQueue($admin, $now);
         $service->byAgent($now);
     });
 
     test('admin dashboard runs in 5 queries on large dataset', function () {
-        $service = app(\App\Dashboard\DashboardService::class);
+        $service = app(DashboardService::class);
         $now = CarbonImmutable::parse('2026-11-05 10:00:00', 'UTC');
 
         $admin = User::factory()->admin()->create();
@@ -524,14 +617,32 @@ describe('constant query counts', function () {
             ]);
         }
 
+        // Finished tickets on every day of the daily window, met and missed
+        for ($day = 0; $day < 14; $day++) {
+            $finishedAt = $now->subDays($day)->subHour();
+            Ticket::factory()->resolved()->create([
+                'category_id' => $this->category->id,
+                'customer_id' => $customer->id,
+                'created_at' => $finishedAt->subHours(5),
+                'resolved_at' => $finishedAt,
+                'sla_due_at' => $day % 2 === 0 ? $finishedAt->addHour() : $finishedAt->subHour(),
+            ]);
+            Ticket::factory()->closed()->create([
+                'category_id' => $this->category->id,
+                'customer_id' => $customer->id,
+                'created_at' => $finishedAt->subHours(5),
+                'resolved_at' => null,
+                'closed_at' => $finishedAt,
+            ]);
+        }
+
         $this->expectsDatabaseQueryCount(5);
         $service->team($now);
-        $service->myQueue($admin, $now);
         $service->byAgent($now);
     });
 
     test('customer dashboard runs in 2 queries on small dataset', function () {
-        $service = app(\App\Dashboard\DashboardService::class);
+        $service = app(DashboardService::class);
 
         $customer = User::factory()->customer()->create();
         Ticket::factory()->open()->count(5)->create([
@@ -544,7 +655,7 @@ describe('constant query counts', function () {
     });
 
     test('customer dashboard runs in 2 queries on large dataset', function () {
-        $service = app(\App\Dashboard\DashboardService::class);
+        $service = app(DashboardService::class);
 
         $customer = User::factory()->customer()->create();
         Ticket::factory()->open()->count(200)->create([
@@ -572,6 +683,7 @@ describe('dashboard caching and freshness', function () {
         $r1 = $this->withToken($token)->getJson('/api/v1/dashboard');
         $r1->assertOk();
         expect($r1->json('team.open'))->toBe(1)
+            ->and($r1->json('daily.13.created'))->toBe(1)
             ->and($r1->json('generated_at'))->toBe($start->toIso8601String());
 
         // 20s later: ticket created
@@ -585,6 +697,7 @@ describe('dashboard caching and freshness', function () {
         $r2 = $this->withToken($token)->getJson('/api/v1/dashboard');
         $r2->assertOk();
         expect($r2->json('team.open'))->toBe(1)
+            ->and($r2->json('daily.13.created'))->toBe(1)
             ->and($r2->json('generated_at'))->toBe($start->toIso8601String());
 
         // 65s later: reload dashboard (cache expired)
@@ -592,6 +705,7 @@ describe('dashboard caching and freshness', function () {
         $r3 = $this->withToken($token)->getJson('/api/v1/dashboard');
         $r3->assertOk();
         expect($r3->json('team.open'))->toBe(2)
+            ->and($r3->json('daily.13.created'))->toBe(2)
             ->and($r3->json('generated_at'))->toBe($start->addSeconds(65)->toIso8601String());
     });
 
@@ -667,16 +781,3 @@ describe('dashboard caching and freshness', function () {
         expect($r2->json('generated_at'))->toBe($start->toIso8601String());
     });
 });
-
-
-
-
-
-
-
-
-
-
-
-
-

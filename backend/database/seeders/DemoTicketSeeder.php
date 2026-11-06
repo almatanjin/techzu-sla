@@ -86,6 +86,32 @@ class DemoTicketSeeder extends Seeder
             }
         }
 
+        // Active tickets get a target SLA state so the demo shows a realistic mix:
+        // half within SLA, a third breached and a sixth approaching.
+        $activeSlaPattern = ['within', 'within', 'breached', 'approaching', 'within', 'breached'];
+        $activeTicketCount = 0;
+
+        // Finds a creation time whose deadlines, by the real business-hours rules, give the
+        // target SLA state now. Walks from $fromStep toward 0 for "within" (newer is safer),
+        // and from $fromStep back up to 10 days for the other states.
+        $createdAtFor = function (TicketPriority $priority, string $target, int $fromStep) use ($slaCalculator, $now): ?CarbonImmutable {
+            $steps = $target === 'within' ? range($fromStep, 0) : range($fromStep, 960);
+            foreach ($steps as $step) {
+                $time = $now->subMinutes($step * 15);
+                $deadlines = $slaCalculator->deadlinesFor($priority, $time);
+                $state = match (true) {
+                    $now->lt($deadlines->warningAt) => 'within',
+                    $now->lt($deadlines->dueAt) => 'approaching',
+                    default => 'breached',
+                };
+                if ($state === $target) {
+                    return $time;
+                }
+            }
+
+            return null;
+        };
+
         foreach ($customers as $cIdx => $customer) {
             // Seed 8 tickets per customer across statuses
             for ($k = 0; $k < 8; $k++) {
@@ -93,7 +119,7 @@ class DemoTicketSeeder extends Seeder
                 $priority = $priorities[($cIdx + $k) % count($priorities)];
                 $status = $customerStatuses[$k];
 
-                $subject = $sampleSubjects[($cIdx * 8 + $k) % count($sampleSubjects)] . ' #' . ($ticketIndex + 1);
+                $subject = $sampleSubjects[($cIdx * 8 + $k) % count($sampleSubjects)].' #'.($ticketIndex + 1);
 
                 $createdAt = (clone $baseDate)->addHours($ticketIndex * 18);
                 $updatedAt = (clone $createdAt)->addHours(4);
@@ -128,7 +154,8 @@ class DemoTicketSeeder extends Seeder
                 } elseif ($ticketIndex === 37) {
                     $status = TicketStatus::Resolved;
                     $priority = TicketPriority::Medium;
-                    $createdAt = Carbon::now()->subDays(3);
+                    // Resolved at its warning time, which must already have passed: met SLA.
+                    $createdAt = Carbon::instance($createdAtFor($priority, 'approaching', 1) ?? $now->subDays(3));
                     $deadlines = $slaCalculator->deadlinesFor($priority, CarbonImmutable::instance($createdAt));
                     $resolvedAt = Carbon::instance($deadlines->warningAt);
                     $updatedAt = clone $resolvedAt;
@@ -136,7 +163,13 @@ class DemoTicketSeeder extends Seeder
                 } elseif ($ticketIndex === 36) {
                     $status = TicketStatus::Resolved;
                     $priority = TicketPriority::Medium;
-                    $createdAt = Carbon::now()->subDays(4);
+                    // Resolved 2 hours after its due time, which must already have passed: missed SLA.
+                    // Step back from 4 days ago until that resolution time is not in the future.
+                    $missedCreatedAt = $now->subDays(4);
+                    while ($slaCalculator->deadlinesFor($priority, $missedCreatedAt)->dueAt->addHours(2)->gt($now)) {
+                        $missedCreatedAt = $missedCreatedAt->subHours(6);
+                    }
+                    $createdAt = Carbon::instance($missedCreatedAt);
                     $deadlines = $slaCalculator->deadlinesFor($priority, CarbonImmutable::instance($createdAt));
                     $resolvedAt = Carbon::instance($deadlines->dueAt)->addHours(2);
                     $updatedAt = clone $resolvedAt;
@@ -155,6 +188,22 @@ class DemoTicketSeeder extends Seeder
                         'warningAt' => CarbonImmutable::now()->addMinutes(3),
                         'dueAt' => CarbonImmutable::now()->addMinutes(12),
                     ];
+                } elseif (in_array($status, TicketStatus::active(), true)) {
+                    $target = $activeSlaPattern[$activeTicketCount % count($activeSlaPattern)];
+                    // Spread creation days for the charts: within tickets start the search up to 3.5 days
+                    // ago and walk toward now, breached ones start 1 to 6 days ago and walk back.
+                    $fromStep = match ($target) {
+                        'within' => 1 + ($activeTicketCount % 8) * 48,
+                        'approaching' => 1,
+                        default => 96 * (1 + $activeTicketCount % 6),
+                    };
+                    $activeTicketCount++;
+
+                    $targetCreatedAt = $createdAtFor($priority, $target, $fromStep);
+                    if ($targetCreatedAt !== null) {
+                        $createdAt = Carbon::instance($targetCreatedAt);
+                        $updatedAt = Carbon::instance(CarbonImmutable::instance($createdAt)->addHours(4)->min($now));
+                    }
                 }
 
                 DB::transaction(function () use (
