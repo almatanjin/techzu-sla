@@ -90,6 +90,24 @@ it('rejects a 51 MB file, an .xlsx and an empty file with 422 on file', function
         ->assertJsonValidationErrors(['file']);
 });
 
+it('rejects CSV text whose file name does not end in .csv or .txt with 422 on file', function () {
+    // A real file on disk, so its type comes from its bytes (CSV text) and only its name says xlsx.
+    $csvTextNamedXlsx = new \Illuminate\Http\UploadedFile(
+        base_path('tests/Fixtures/imports/valid-3.csv'),
+        'tickets.xlsx',
+        'text/csv',
+        null,
+        true,
+    );
+
+    $this->withToken($this->adminToken)
+        ->postJson('/api/v1/admin/imports', ['file' => $csvTextNamedXlsx])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['file']);
+
+    expect(\App\Models\TicketImport::count())->toBe(0);
+});
+
 it('answers 409 Another import is in progress. and creates nothing while an import is processing', function () {
     \App\Models\TicketImport::factory()->create([
         'user_id' => $this->admin->id,
