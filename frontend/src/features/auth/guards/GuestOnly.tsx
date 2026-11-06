@@ -1,8 +1,9 @@
-import { Navigate, Outlet } from 'react-router'
+import { Navigate, Outlet, useLocation, type Location } from 'react-router'
 import { useAuth } from '../useAuth'
 
 export function GuestOnly() {
   const { status } = useAuth()
+  const location = useLocation()
 
   if (status === 'loading') {
     return (
@@ -13,7 +14,8 @@ export function GuestOnly() {
   }
 
   if (status === 'authenticated') {
-    return <Navigate to="/" replace />
+    const from = (location.state as { from?: Location } | null)?.from
+    return <Navigate to={from ? { pathname: from.pathname, search: from.search, hash: from.hash } : '/'} replace />
   }
 
   return <Outlet />

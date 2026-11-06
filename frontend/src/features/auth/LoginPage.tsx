@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { z } from 'zod'
 import { applyApiErrors } from '../../shared/api/applyApiErrors'
 import { useAuth } from './useAuth'
@@ -15,7 +15,6 @@ type LoginFormValues = z.infer<typeof loginSchema>
 
 export function LoginPage() {
   const { login } = useAuth()
-  const navigate = useNavigate()
   const location = useLocation()
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -38,9 +37,8 @@ export function LoginPage() {
   const onSubmit = async (values: LoginFormValues) => {
     setFormError(null)
     try {
+      // GuestOnly redirects to the originally requested page (or home) once signed in.
       await login(values)
-      const from = (location.state?.from?.pathname as string) || '/'
-      navigate(from, { replace: true })
     } catch (error) {
       applyApiErrors(error, setError, setFormError)
     }

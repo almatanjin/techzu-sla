@@ -59,6 +59,47 @@ describe('LoginPage', () => {
     expect(window.location.pathname).toBe('/')
   })
 
+  it('returns to the originally requested page, including its query string, after signing in', async () => {
+    const user = userEvent.setup()
+    const adminUser = {
+      id: 1,
+      name: 'Demo Admin',
+      email: 'admin@example.test',
+      role: 'admin',
+      is_active: true,
+    }
+
+    server.use(
+      http.post('http://api.test/api/v1/auth/login', () =>
+        HttpResponse.json({
+          token: 'token-admin',
+          token_type: 'Bearer',
+          expires_at: '2026-11-12T00:00:00Z',
+          user: adminUser,
+        }),
+      ),
+      http.get('http://api.test/api/v1/auth/me', () => HttpResponse.json(adminUser)),
+      http.get('http://api.test/api/v1/admin/users', () =>
+        HttpResponse.json({
+          data: [],
+          meta: { current_page: 1, last_page: 1, per_page: 20, total: 0 },
+          links: { first: null, last: null, prev: null, next: null },
+        }),
+      ),
+    )
+
+    window.history.replaceState(null, '', '/admin/users?role=agent')
+    render(<Root />)
+
+    await user.type(await screen.findByLabelText('Email'), 'admin@example.test')
+    await user.type(screen.getByLabelText('Password'), 'Password123')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/admin/users')
+    expect(window.location.search).toBe('?role=agent')
+  })
+
   it('shows API error message under email field on wrong password', async () => {
     const user = userEvent.setup()
 
