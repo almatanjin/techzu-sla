@@ -201,11 +201,11 @@ For deep pagination (such as page 100 and beyond), cursor pagination on `(create
 
 | Method | Endpoint | Access | Description |
 | ------ | -------- | ------ | ----------- |
-| `GET` | `/api/v1/admin/sla-policies` | Admin only | List resolution policies and warning thresholds |
+| `GET` | `/api/v1/admin/sla-policies` | Admin, Agent (read-only) | List resolution policies and warning thresholds |
 | `PATCH` | `/api/v1/admin/sla-policies/{priority}` | Admin only | Update resolution minutes and warning threshold percentage |
-| `GET` | `/api/v1/admin/business-hours` | Admin only | Retrieve weekly business operating schedule and timezone |
+| `GET` | `/api/v1/admin/business-hours` | Admin, Agent (read-only) | Retrieve weekly business operating schedule and timezone |
 | `PUT` | `/api/v1/admin/business-hours` | Admin only | Replace the 7-day operating schedule |
-| `GET` | `/api/v1/admin/holidays` | Admin only | List holidays for a given year sorted by date |
+| `GET` | `/api/v1/admin/holidays` | Admin, Agent (read-only) | List holidays for a given year sorted by date |
 | `POST` | `/api/v1/admin/holidays` | Admin only | Add a new holiday date and name |
 | `DELETE` | `/api/v1/admin/holidays/{id}` | Admin only | Delete a holiday by ID |
 

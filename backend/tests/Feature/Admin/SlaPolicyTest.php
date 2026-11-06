@@ -71,10 +71,10 @@ test('out-of-range sla policy values answer 422', function (array $payload, stri
     [['warning_threshold_percent' => 100], 'warning_threshold_percent'],
 ]);
 
-test('agents are forbidden from reading or changing sla policies', function () {
+test('agent can get sla policies but cannot patch them', function () {
     $this->withToken($this->agentToken)
         ->getJson('/api/v1/admin/sla-policies')
-        ->assertForbidden();
+        ->assertOk();
 
     $this->withToken($this->agentToken)
         ->patchJson('/api/v1/admin/sla-policies/high', ['resolution_minutes' => 600])

@@ -157,10 +157,10 @@ test('invalid business hours payloads return 422', function () {
         ->assertJsonValidationErrors(['days.0.opens_at']);
 });
 
-test('agents are forbidden from reading or updating business hours', function () {
+test('agent can get business hours but cannot update them', function () {
     $this->withToken($this->agentToken)
         ->getJson('/api/v1/admin/business-hours')
-        ->assertForbidden();
+        ->assertOk();
 
     $this->withToken($this->agentToken)
         ->putJson('/api/v1/admin/business-hours', ['days' => []])
