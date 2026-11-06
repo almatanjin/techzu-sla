@@ -229,7 +229,6 @@ For deep pagination (such as page 100 and beyond), cursor pagination on `(create
 ## SLA and business hours
 
 Every ticket receives an SLA resolution deadline based on its priority, measured strictly in business hours.
-Because new required SLA columns exist on tickets, local databases must be rebuilt with `docker compose exec app php artisan migrate:fresh --seed`.
 
 ### Business hours schedule and timezone
 
@@ -287,7 +286,8 @@ Only agents assigned to the ticket's category are evaluated first.
 - Among matching candidates, the agent with the lowest active ticket workload is selected.
 Active workload counts open, in-progress, and waiting-for-customer tickets.
 - Agents who have reached their `max_open_tickets` threshold or are marked unavailable are skipped.
-- When no available agent handles the category, assignment falls back to any available agent with the lowest active workload below their cap.
+- When no candidate agent handles the category, every candidate agent is considered, again by lowest active workload below their cap.
+- When every agent who handles the category is at their cap, the ticket stays unassigned until the retry command or a manual claim.
 - Tied candidates are broken deterministically: the candidate with the oldest `last_assigned_at` timestamp is picked, favoring candidates who have never been assigned, with lowest ID as the final tie-breaker.
 - This strategy balances incoming tickets across the team while ensuring domain specialists receive relevant issues.
 
@@ -302,8 +302,8 @@ Support agents can claim unassigned tickets directly from the detail view:
 
 - `PUT /api/v1/tickets/{ticket_number}/assignment`: Administrators assign or unassign a ticket.
 The payload requires `agent_id` (agent ID or `null`) and the ticket's `lock_version` for optimistic concurrency control.
-- `POST /api/v1/tickets/{ticket_number}/claim`: Available support agents or administrators claim an unassigned ticket.
-- `POST /api/v1/tickets/{ticket_number}/release`: The current assignee releases their in-progress ticket back to the unassigned pool.
+- `POST /api/v1/tickets/{ticket_number}/claim`: Active support agents or administrators claim an unassigned active ticket.
+- `POST /api/v1/tickets/{ticket_number}/release`: The current assignee releases their active ticket back to the unassigned pool.
 - `GET /api/v1/admin/agents`: Administrators view all agents, their availability, maximum ticket caps, handled categories, and current active ticket counts.
 
 ### Retry command and schedule
@@ -357,7 +357,7 @@ The database records the cleaned original filename, MIME type, byte size, and SH
 Downloads are served through `GET /api/v1/attachments/{id}/download`.
 The endpoint verifies the caller's authorization through `AttachmentPolicy`.
 Responses deliver the raw file stream with `Content-Disposition: attachment; filename="{original_name}"`.
-Security headers include `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-cache, no-store, must-revalidate`.
+Security headers include `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`.
 
 ### Docker upload limits
 
@@ -415,7 +415,7 @@ Local emails are captured by Mailpit and viewable at http://localhost:8025.
 | Staff replied | Customer | `[{ticket_number}] New reply from support` |
 | Internal note added | Assigned agent | `[{ticket_number}] New internal note` |
 | Ticket resolved | Customer | `[{ticket_number}] Your ticket was resolved` |
-| SLA deadline approaching | Assigned agent | `[{ticket_number}] SLA deadline approaching` |
+| SLA deadline approaching | Assigned agent (or all active Admins if unassigned) | `[{ticket_number}] SLA deadline approaching` |
 | SLA escalated | Former assigned agent and all active Admins | `[{ticket_number}] Escalated: SLA deadline passed` |
 
 Recipient resolution rules:
@@ -455,46 +455,41 @@ The import pipeline processes files up to 50 MB using constant memory streaming,
 
 ### Columns and formats
 
-Files must be comma-separated values (CSV) encoded in UTF-8.
-Optional UTF-8 byte-order marks (BOM) are stripped automatically.
-Header names are case-insensitive and can appear in any order.
-The template provides the following 10 columns:
+Files must be comma-separated values (CSV) encoded in UTF-8, with a `.csv` or `.txt` file name.
+An optional UTF-8 byte-order mark (BOM) is stripped automatically.
+Header names are case-insensitive, spaces count as underscores, and columns can appear in any order.
+The template provides these 10 columns:
 
-- `customer_email`: Required customer email address matching an existing user with role `customer`.
-Both active and deactivated customers are accepted so historical tickets retain accurate authorship.
-- `category_name`: Required category name matching an existing active category.
-- `priority`: Required case-insensitive ticket priority (`low`, `medium`, `high`, `critical`).
-- `subject`: Required issue summary between 1 and 200 characters.
-- `description`: Required issue description up to 65,535 characters.
-Multi-line quoted text with embedded line breaks is fully supported.
-- `status`: Optional ticket status (`open`, `in_progress`, `waiting_for_customer`, `resolved`, `closed`).
-Defaults to `open` when omitted or blank.
-- `created_at`: Optional creation timestamp formatted as ISO 8601 or `YYYY-MM-DD HH:MM:SS`.
-Times lacking timezone offsets are interpreted in the business timezone (`TICKETS_TIMEZONE`, default `Asia/Dhaka`).
-Defaults to the import timestamp when omitted or blank.
-Timestamps in the future are rejected.
-- `resolved_at`: Timestamp required when status is `resolved` or `closed`.
-Forbidden on active ticket statuses.
-Must be at or after `created_at` and cannot be in the future.
-- `closed_at`: Timestamp required when status is `closed`.
-Forbidden on non-closed ticket statuses.
-Must be at or after `resolved_at` and cannot be in the future.
-- `external_reference`: Required identifier up to 64 characters from the origin system.
+- `external_reference`: Required identifier from the origin system, up to 100 characters.
+- `customer_email`: Required email of an existing customer account.
+- `subject`: Required issue summary, up to 200 characters.
+- `description`: Required issue description, up to 10,000 characters.
+Multi-line quoted text with embedded line breaks is supported.
+- `priority`: Required, case-insensitive: `low`, `medium`, `high` or `critical`.
+- `category`: Required name of an existing category, case-insensitive.
+- `status`: Required: `open`, `in_progress`, `waiting_for_customer` (or `waiting`), `resolved` or `closed`.
+- `created_at`: Optional timestamp, ISO 8601 or `YYYY-MM-DD HH:MM:SS`.
+Times without a timezone offset are read in the business timezone (`TICKETS_TIMEZONE`, default `Asia/Dhaka`).
+A blank value means the import time, and a time in the future is rejected.
+- `resolved_at`: Required when status is `resolved`, and not allowed on active statuses.
+It must not be in the future or earlier than `created_at`.
+- `closed_at`: Required when status is `closed`, and not allowed on active statuses.
+It must not be in the future or earlier than `created_at`.
 
 ### Row rules, errors, and duplicate handling
 
-Invalid rows are rejected and reported with descriptive reasons:
-- Non-CSV files, empty uploads, or files exceeding 50 MB are rejected immediately with HTTP 422.
-- Missing required header columns return an immediate 422 error detailing the missing column name.
-- Invalid UTF-8 sequences trigger a file rejection.
-- Unknown customer emails report `Unknown customer email {email}`.
-- Unknown categories report `Unknown category {category}`.
-- Invalid priorities report `Invalid priority {priority}`.
-- Invalid statuses report `Invalid status {status}`.
-- Inconsistent timestamps report specific mismatches, including `Resolved at is required for resolved tickets` and `Resolved at cannot be earlier than created at`.
-- In-file duplicate references report `Duplicate of line {earlier_line} in this file.`.
-- Database duplicate references report `Reference {reference} already exists in the database.`.
-- Re-importing a previously imported file flags all previously imported rows as duplicates and creates zero tickets.
+The upload itself answers HTTP 422 when the file is missing, empty, larger than 50 MB, not CSV or text content, or not named `.csv` or `.txt`.
+When required header columns are missing, the import is marked failed with "Missing required columns: ..." and the missing names.
+Each invalid row is skipped and reported with one reason per problem, in the form `field: message`, for example:
+- `customer_email: No customer account has this email.`
+- `priority: Must be one of low, medium, high, critical.`
+- `category: Category does not exist.`
+- `resolved_at: Required when status is resolved.`
+- `created_at: Must not be in the future.`
+- A row that is not valid UTF-8 reports `Row is not valid UTF-8.`
+
+A repeated `external_reference` in the same file reports `Duplicate of line {line} in this file.`.
+A reference that already exists in the database is skipped, so importing the same file again creates no new tickets.
 
 Administrators can download the error report via `GET /api/v1/admin/imports/{id}/errors.csv`.
 The report streams a CSV file with columns `line`, `external_reference`, and `reasons` for failed and duplicate rows in original file order.
@@ -504,24 +499,24 @@ The report streams a CSV file with columns `line`, `external_reference`, and `re
 The import architecture splits execution into two coordinated phases:
 1. **Scan pass (`ScanTicketImport`)**:
 A single streaming pass reads the uploaded file row by row with `fgetcsv`.
-It verifies headers, indexes byte offsets every 500 rows, maps external references to detect in-file duplicates, and records chunk metadata in `ticket_import_chunks`.
+It verifies headers, records the byte offset of every 500-row chunk, and maps external references to detect in-file duplicates.
 Total rows and detected duplicate counts are persisted upon scan completion.
 2. **Chunk jobs (`ProcessTicketImportChunk`)**:
 The scan job dispatches a `Bus::batch` containing one job per 500-row chunk.
 Queue workers seek directly to chunk byte offsets and process rows independently.
-Each chunk caches business schedules and SLA policies in memory, avoiding repeated policy queries.
+Each chunk loads the SLA policies and the business calendar once and computes every row's deadlines from them, so a chunk's query count does not grow with its rows.
 Ticket sequence numbers are allocated in batch blocks using `TicketNumberGenerator::nextBlock($count)`.
-Tickets, SLA properties, and timeline activities commit within a single database transaction per chunk.
+Tickets, SLA properties, timeline activities, row errors and the chunk's `ticket_import_chunks` record commit within a single database transaction per chunk.
 
 Retries remain idempotent:
-- Each chunk checks its `ticket_import_chunks` record.
-- A chunk marked `completed` returns immediately, preventing duplicate rows or repeated count increments on worker retries.
+- Each chunk first looks for its `ticket_import_chunks` record.
+- A chunk that already has a record returns immediately, preventing duplicate rows or repeated count increments on worker retries.
 - Failed chunk jobs record row-level error entries and mark the parent import status as `failed` with "Some rows could not be processed.".
 - Clean chunks in the same batch continue processing normally.
 
 Memory consumption remains constant regardless of row volume:
-- Benchmarking 100,000 valid rows imported completely in 14.14 seconds.
-- Peak memory usage during the 100,000-row run increased by only 22.4 MB, well below the 64 MB budget.
+- The benchmark (`--testsuite=Import`) imports 100,000 valid rows; a run on 2026-11-06 in the Docker stack took about 14 seconds, and the time depends on the machine.
+- Peak memory usage during the 100,000-row run increased by only 22.4 MB, well below the 64 MB budget the test enforces.
 
 ### Quiet import and silent SLA assumptions
 
@@ -572,7 +567,7 @@ The home page displays an operational dashboard tailored to each user's authenti
 - **Administrators**: See team counts (`open`, `unassigned`, `critical`, `sla_within`, `sla_approaching`, `sla_breached`), resolution throughput (`resolved_today`, `resolved_last_7_days`), an interactive priority distribution bar, the `Workload by agent` chart, and the full `Tickets by agent` workload table.
 Admins have no `My queue` section and the API sends them no `my_queue`, because their own tickets appear in their row of the workload table.
 The workload table lists all active support agents as well as any inactive agents holding open tickets, each with `open`, `sla_within`, `sla_approaching` and `sla_breached` counts.
-Each metric tile and table cell links directly to `/tickets` filtered by the corresponding criteria.
+Each metric tile links to `/tickets` filtered by the matching criteria, and each agent name in the table links to that agent's tickets.
 - **Support Agents**: See the shared team operational counts, resolution throughput, priority distribution bar, and personal queue metrics (`my_queue`: `open`, `sla_approaching`, `sla_breached`).
 The agent workload table is omitted for non-admin staff.
 - **Customers**: See a simplified view focused entirely on their own tickets, including open, waiting for customer reply, and closed counts, followed by their 5 most recently updated tickets.
@@ -627,7 +622,8 @@ The dashboard calculates metrics without hydrating Eloquent ticket models, execu
 - An agent's dashboard runs 4 queries: team aggregation, daily created, daily finished, and the personal queue.
 - Day buckets come from UTC day bounds computed in PHP and a `CASE` expression in SQL, so they are exact in any timezone without MySQL timezone tables.
 - A customer's dashboard runs 2 queries: the summary counts and the 5 recent tickets.
-- The daily created query uses `tickets_created_at_index`. The daily finished query is a `UNION ALL` of a `tickets_resolved_at_index` range and a `tickets_closed_at_index` range, because MySQL does not merge the two indexes for an `OR`.
+- The daily created query uses `tickets_created_at_index`.
+- The daily finished query is a `UNION ALL` of a `tickets_resolved_at_index` range and a `tickets_closed_at_index` range, because MySQL does not merge the two indexes for an `OR`.
 - Composite indexes `tickets_status_priority_index`, `tickets_status_sla_due_at_index`, and `tickets_assigned_agent_id_status_index` ensure index coverage for active ticket filters.
 
 ## Environment variables
@@ -638,7 +634,7 @@ Key configuration settings in `backend/.env`:
 - `SANCTUM_TOKEN_EXPIRATION`: Personal access token validity period in minutes (default: `10080` minutes / 7 days).
 - `TICKET_NUMBER_PREFIX`: Prefix for ticket numbers (default: `TKT`).
 - `TICKET_NUMBER_PADDING`: Zero-padding width for sequential ticket numbers (default: `6`).
-- `TICKETS_TIMEZONE`: Timezone for determining creation year and sequence reset (default: `Asia/Dhaka`).
+- `TICKETS_TIMEZONE`: Business timezone for ticket number years, business hours, dashboard days and CSV import times without an offset (default: `Asia/Dhaka`).
 
 ## Local services
 
