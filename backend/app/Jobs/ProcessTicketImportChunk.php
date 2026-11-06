@@ -127,6 +127,7 @@ class ProcessTicketImportChunk implements ShouldQueue
 
             if ($rawRow === [null] || empty(array_filter($rawRow, fn ($v) => $v !== null && trim((string) $v) !== ''))) {
                 $currentLine++;
+
                 continue;
             }
 
@@ -212,6 +213,7 @@ class ProcessTicketImportChunk implements ShouldQueue
 
             if (isset($inFileDuplicateLines[$line])) {
                 $chunkProcessed++;
+
                 continue;
             }
 
@@ -231,6 +233,7 @@ class ProcessTicketImportChunk implements ShouldQueue
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+
                 continue;
             }
 
@@ -261,9 +264,12 @@ class ProcessTicketImportChunk implements ShouldQueue
             }
         }
 
+        // Load the SLA policies and business calendar once for the whole chunk.
+        $slaSnapshot = $slaCalculator->snapshot();
+
         DB::transaction(function () use (
             $generator,
-            $slaCalculator,
+            $slaSnapshot,
             $import,
             $validRows,
             $errorRecords,
@@ -291,7 +297,7 @@ class ProcessTicketImportChunk implements ShouldQueue
 
                 foreach ($validRows as $idx => $row) {
                     $createdAt = $row->createdAt ?? $now;
-                    $deadlines = $slaCalculator->deadlinesFor($row->priority, $createdAt);
+                    $deadlines = $slaSnapshot->deadlinesFor($row->priority, $createdAt);
 
                     $isActive = in_array($row->status, TicketStatus::active(), true);
                     $slaWarningNotifiedAt = null;

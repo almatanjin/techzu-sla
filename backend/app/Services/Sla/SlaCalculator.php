@@ -14,22 +14,17 @@ class SlaCalculator
 
     public function deadlinesFor(TicketPriority $priority, CarbonImmutable $start): SlaDeadlines
     {
-        $policy = $this->policyRepository->forPriority($priority);
-        $schedule = $this->scheduleRepository->current();
-        $calculator = new BusinessHoursCalculator($schedule);
+        return $this->snapshot()->deadlinesFor($priority, $start);
+    }
 
-        $policyMinutes = (int) $policy->resolution_minutes;
-        $warningMinutes = intdiv($policyMinutes * (int) $policy->warning_threshold_percent, 100);
-
-        $warningAt = $calculator->addBusinessMinutes($start, $warningMinutes);
-        $dueAt = $calculator->addBusinessMinutes($start, $policyMinutes);
-
-        return new SlaDeadlines(
-            policyMinutes: $policyMinutes,
-            startedAt: $start->setTimezone('UTC'),
-            warningAt: $warningAt,
-            dueAt: $dueAt,
+    /**
+     * Loads the policies and the business calendar once, for computing many deadlines without queries.
+     */
+    public function snapshot(): SlaSnapshot
+    {
+        return new SlaSnapshot(
+            $this->policyRepository->all(),
+            new BusinessHoursCalculator($this->scheduleRepository->current()),
         );
     }
 }
-

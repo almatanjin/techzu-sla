@@ -18,5 +18,14 @@ class SlaPolicyRepository
 
         return $policy;
     }
-}
 
+    /**
+     * @return array<string, SlaPolicy> keyed by priority value
+     */
+    public function all(): array
+    {
+        return SlaPolicy::query()->get()->keyBy(fn (SlaPolicy $policy) => $policy->priority instanceof TicketPriority
+            ? $policy->priority->value
+            : (string) $policy->priority)->all();
+    }
+}
