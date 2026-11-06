@@ -17,7 +17,7 @@ class BusinessHourController extends Controller
     public function show(Request $request): JsonResponse
     {
         $user = $request->user();
-        if ($user === null || (! $user->isAdmin() && ! $user->isAgent()) || ! $user->is_active) {
+        if ($user === null || ! $user->isAdmin() || ! $user->is_active) {
             abort(403);
         }
 

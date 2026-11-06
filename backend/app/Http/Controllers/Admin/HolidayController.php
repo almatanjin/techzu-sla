@@ -21,7 +21,7 @@ class HolidayController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $user = $request->user();
-        if ($user === null || (! $user->isAdmin() && ! $user->isAgent()) || ! $user->is_active) {
+        if ($user === null || ! $user->isAdmin() || ! $user->is_active) {
             abort(403);
         }
 

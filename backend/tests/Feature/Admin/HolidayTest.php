@@ -75,11 +75,11 @@ test('admin can delete a holiday with 204 response', function () {
     expect(Holiday::find($holiday->id))->toBeNull();
 });
 
-test('agent can list holidays but cannot create or delete them', function () {
+test('agents are forbidden from listing, creating or deleting holidays', function () {
     $holiday = Holiday::create(['date' => '2026-05-01', 'name' => 'May Day']);
 
     // Agent list
-    $this->withToken($this->agentToken)->getJson('/api/v1/admin/holidays')->assertOk();
+    $this->withToken($this->agentToken)->getJson('/api/v1/admin/holidays')->assertForbidden();
     // Agent create
     $this->withToken($this->agentToken)->postJson('/api/v1/admin/holidays', ['date' => '2026-06-01', 'name' => 'Day'])->assertForbidden();
     // Agent delete
